@@ -1,9 +1,11 @@
 package com.sleepguard.poc
 
+import android.content.res.Configuration
 import android.os.Bundle
 import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.WindowCompat
 import com.sleepguard.poc.databinding.ActivityMainBinding
 import java.time.Instant
 import java.time.LocalDate
@@ -50,6 +52,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        applySystemBarInsets()
 
         binding.privacyText.text = getString(R.string.privacy_message)
 
@@ -84,6 +87,23 @@ class MainActivity : AppCompatActivity() {
         binding.collectLastNightButton.isEnabled = granted
         binding.backfillButton.isEnabled = granted
         // Show-logs and Clear act on local storage only — always enabled.
+    }
+
+    /**
+     * Edge-to-edge compatibility (targetSdk 35+ draws content behind the system bars). Pads the
+     * scrollable content by the dynamic system-bar + display-cutout insets via the reusable
+     * [applySystemBarInsetsPadding] helper, and keeps the bar icons readable against the app
+     * background in both light and dark mode. No layout redesign and no data/logic change.
+     */
+    private fun applySystemBarInsets() {
+        binding.contentRoot.applySystemBarInsetsPadding()
+
+        val lightBackground = (resources.configuration.uiMode and
+            Configuration.UI_MODE_NIGHT_MASK) != Configuration.UI_MODE_NIGHT_YES
+        WindowCompat.getInsetsController(window, binding.root).apply {
+            isAppearanceLightStatusBars = lightBackground
+            isAppearanceLightNavigationBars = lightBackground
+        }
     }
 
     // -----------------------------------------------------------------------
