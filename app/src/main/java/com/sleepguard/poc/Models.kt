@@ -73,8 +73,7 @@ data class WindowAnchors(
 data class MeaningfulInteraction(
     val startMillis: Long,
     val endMillis: Long,
-    val durationMillis: Long,
-    val wasUnlocked: Boolean
+    val durationMillis: Long
 )
 
 /** Classification of a single quiet (no-meaningful-use) stretch. */

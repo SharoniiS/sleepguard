@@ -216,7 +216,7 @@ class NightPatternAnalyzer(private val config: AnalysisConfig = AnalysisConfig()
             val wasUnlocked = keyguardHidden.any { it in rawStart..rawEnd }
             val isRealUse = (config.treatUnlockAsMeaningful && wasUnlocked) || duration >= minOnMillis
             if (isRealUse) {
-                result.add(MeaningfulInteraction(start, end, duration, wasUnlocked))
+                result.add(MeaningfulInteraction(start, end, duration))
             }
             // Non-real-use sessions (notification glows, micro-taps) are intentionally
             // dropped: they must NOT break a quiet period.

@@ -90,29 +90,27 @@ class MainActivity : AppCompatActivity() {
     // Windows
     // -----------------------------------------------------------------------
 
+    /** Absolute epoch millis for [date] at [hour]:00 in the device timezone. */
+    private fun at(date: LocalDate, hour: Int): Long =
+        date.atTime(LocalTime.of(hour, 0)).atZone(zone).toInstant().toEpochMilli()
+
     /** Sleep-analysis anchors for the night whose morning is [morning]: (m-1) 22:00 -> m 18:00. */
-    private fun anchorsForNight(morning: LocalDate): WindowAnchors {
-        fun at(date: LocalDate, hour: Int): Long =
-            date.atTime(LocalTime.of(hour, 0)).atZone(zone).toInstant().toEpochMilli()
-        return WindowAnchors(
+    private fun anchorsForNight(morning: LocalDate): WindowAnchors =
+        WindowAnchors(
             windowStart = at(morning.minusDays(1), 22),
             morningEarliest = at(morning, 4),
             morningStart = at(morning, 6),
             noon = at(morning, 12),
             windowEnd = at(morning, 18)
         )
-    }
 
     /**
      * Full-day capture window for the night whose morning is [morning]: (m-1) 18:00 -> m 18:00.
      * 24h and contiguous across days, so the interaction log misses nothing. Sleep analysis still
      * runs on the 22:00->18:00 slice (the analyzer ignores events outside its anchors).
      */
-    private fun dayWindow(morning: LocalDate): Pair<Long, Long> {
-        fun at(date: LocalDate, hour: Int): Long =
-            date.atTime(LocalTime.of(hour, 0)).atZone(zone).toInstant().toEpochMilli()
-        return at(morning.minusDays(1), 18) to at(morning, 18)
-    }
+    private fun dayWindow(morning: LocalDate): Pair<Long, Long> =
+        at(morning.minusDays(1), 18) to at(morning, 18)
 
     // -----------------------------------------------------------------------
     // Actions
