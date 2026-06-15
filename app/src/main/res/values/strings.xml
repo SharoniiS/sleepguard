@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">SleepGuard Android POC</string>
+
+    <string name="privacy_message">SleepGuard does not read your messages, notifications, app content, location, microphone, or camera. This POC only reads screen on/off timing events from Android Usage Access in order to estimate nighttime phone interaction. Data is stored only on this device.</string>
+
+    <string name="status_granted">Usage Access: Granted</string>
+    <string name="status_missing">Usage Access: Missing</string>
+    <string name="button_open_settings">Open Usage Access Settings</string>
+
+    <string name="button_collect_last_night">Collect Last Night</string>
+
+    <string name="label_last_night">Last Night:</string>
+    <string name="last_night_empty">No data yet. Press \"Collect Last Night\".</string>
+
+    <string name="label_history">History:</string>
+    <string name="history_empty">No saved nights yet.</string>
+    <string name="label_estimated_sleep">Estimated sleep (inactivity over 4h):</string>
+    <string name="estimated_sleep_empty">No nights yet.</string>
+    <string name="button_show_all_logs">Show All Logs</string>
+    <string name="button_hide_all_logs">Hide All Logs</string>
+
+    <string name="label_debug">Debug:</string>
+    <string name="button_backfill">Backfill Available History</string>
+    <string name="button_clear_history">Clear Stored Data</string>
+
+    <string name="status_success">Collection status: Success</string>
+    <string name="error_no_permission">Cannot collect events because Usage Access is missing. Please enable Usage Access first.</string>
+    <string name="error_no_events">No screen events found for the selected window. The device may not have retained usage events for that period.</string>
+    <string name="error_query_failed">Failed to collect usage events. Please check permission and try again.</string>
+    <string name="error_no_settings_screen">Could not open Usage Access settings on this device. Please enable it manually under Settings &gt; Apps &gt; Special app access &gt; Usage access.</string>
+</resources>

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Simple crescent-moon foreground for the adaptive launcher icon. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M64,30 C50,30 38,42 38,56 C38,70 50,82 64,82 C70,82 76,80 80,76 C72,78 62,76 56,68 C48,58 50,44 60,36 C61,34 63,32 64,30 Z" />
+</vector>
