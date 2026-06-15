@@ -17,8 +17,13 @@
     <string name="history_empty">No saved nights yet.</string>
     <string name="label_estimated_sleep">Estimated sleep (inactivity over 4h):</string>
     <string name="estimated_sleep_empty">No nights yet.</string>
-    <string name="button_show_all_logs">Show All Logs</string>
-    <string name="button_hide_all_logs">Hide All Logs</string>
+    <string name="button_show_night_details">Show night details</string>
+    <string name="button_hide_night_details">Hide night details</string>
+    <string name="button_show_raw_events">Show raw events for this night</string>
+    <string name="button_hide_raw_events">Hide raw events</string>
+
+    <string name="button_show_debug">Debug information</string>
+    <string name="button_hide_debug">Hide debug information</string>
 
     <string name="label_debug">Debug:</string>
     <string name="button_backfill">Backfill Available History</string>

@@ -108,63 +108,93 @@
             android:layout_marginBottom="8dp" />
 
         <Button
-            android:id="@+id/showAllLogsButton"
+            android:id="@+id/nightDetailsButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="@string/button_show_all_logs" />
+            android:text="@string/button_show_night_details" />
 
-        <TextView
-            android:id="@+id/historyText"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:fontFamily="monospace"
-            android:textSize="12sp"
-            android:paddingTop="4dp"
-            android:paddingBottom="16dp" />
-
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:layout_marginVertical="8dp"
-            android:background="?android:attr/listDivider" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/label_debug"
-            android:textStyle="bold" />
-
+        <!-- One expandable card per saved night (populated in code). Hidden by default.
+             Each night opens a Last Night-style summary and, on demand, its own raw events.
+             Replaces the old global "Show All Logs" event dump. -->
         <LinearLayout
+            android:id="@+id/nightListContainer"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginTop="8dp">
+            android:orientation="vertical"
+            android:visibility="gone" />
 
-            <Button
-                android:id="@+id/backfillButton"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:enabled="false"
-                android:text="@string/button_backfill" />
+        <Button
+            android:id="@+id/debugToggleButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/button_show_debug" />
 
-            <Button
-                android:id="@+id/clearButton"
-                android:layout_width="0dp"
+        <!-- Collapsible debug section: hidden by default, toggled by debugToggleButton.
+             Holds ALL technical content — the detailed per-night log list (controlled by
+             "Show All Logs") plus the existing debug heading / Backfill / Clear / counts.
+             Nothing is removed; it is only collapsed by default. -->
+        <LinearLayout
+            android:id="@+id/debugSection"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/historyText"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:layout_marginStart="8dp"
-                android:text="@string/button_clear_history" />
+                android:fontFamily="monospace"
+                android:textSize="12sp"
+                android:paddingTop="4dp"
+                android:paddingBottom="16dp" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginVertical="8dp"
+                android:background="?android:attr/listDivider" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/label_debug"
+                android:textStyle="bold"
+                android:layout_marginTop="8dp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginTop="8dp">
+
+                <Button
+                    android:id="@+id/backfillButton"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:enabled="false"
+                    android:text="@string/button_backfill" />
+
+                <Button
+                    android:id="@+id/clearButton"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="8dp"
+                    android:text="@string/button_clear_history" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/debugText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:fontFamily="monospace"
+                android:textSize="11sp"
+                android:paddingTop="8dp" />
         </LinearLayout>
-
-        <TextView
-            android:id="@+id/debugText"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:fontFamily="monospace"
-            android:textSize="11sp"
-            android:paddingTop="8dp" />
 
     </LinearLayout>
 

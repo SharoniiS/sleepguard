@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  One saved night = one readable card (one self-contained analysis unit). The short summary is
+  always visible; only "Show raw events for this night" expands, and it reveals ONLY this night's
+  raw events. Inflated once per NightRecord by MainActivity.renderNightList.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="#1F888888"
+    android:padding="12dp"
+    android:layout_marginTop="8dp">
+
+    <TextView
+        android:id="@+id/nightHeaderText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textStyle="bold"
+        android:textSize="15sp" />
+
+    <TextView
+        android:id="@+id/nightSummaryText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fontFamily="monospace"
+        android:textSize="13sp"
+        android:paddingTop="6dp"
+        android:paddingBottom="8dp" />
+
+    <Button
+        android:id="@+id/rawEventsToggleButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textAllCaps="false"
+        android:text="@string/button_show_raw_events" />
+
+    <TextView
+        android:id="@+id/rawEventsText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fontFamily="monospace"
+        android:textSize="11sp"
+        android:paddingTop="6dp"
+        android:visibility="gone" />
+</LinearLayout>

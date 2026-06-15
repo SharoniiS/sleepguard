@@ -77,26 +77,55 @@ app/src/main/java/com/sleepguard/poc/
   NightRecordMapper.kt     Pure NightPatternResult -> NightRecord mapping
   NightRepository.kt       Local JSON persistence in app-private filesDir (load/upsert/clear)
   InteractionHistory.kt    Pure helpers: cross-night event flatten + long-inactivity blocks
+  ViewInsets.kt            Reusable View.applySystemBarInsetsPadding() (edge-to-edge safe area)
+app/src/main/res/layout/
+  activity_main.xml        Main screen
+  item_night.xml           One per-night card (header + always-visible summary + raw-events expand)
 app/src/test/java/com/sleepguard/poc/
   NightPatternAnalyzerTest.kt  27 tests (labels, precedence, awakenings, verdicts, future-window cap, structural model, ...)
   NightStorageTest.kt          5 tests (mapper, JSON round-trip, upsert merge)
   InteractionHistoryTest.kt    4 tests (flatten/dedup, long-inactivity threshold)
 ```
 
-**Buttons** (all retrospective, on-demand — collection happens only on press):
+**Buttons / sections** (all retrospective, on-demand — collection happens only on press):
 1. **Collect Last Night** — captures the full day (yesterday 18:00 → today 18:00) and runs
    `NightPatternAnalyzer` on the 22:00 → 18:00 analysis window. Auto-saves the night. The
-   capture window is wider than the analysis window only so the "all interactions" log misses
+   capture window is wider than the analysis window only so the per-night raw log misses
    nothing; the analyzer ignores events outside its anchors.
-2. **Backfill Available History** (debug/POC) — probes the last 10 retained nights and saves
-   each one that still has data (skips empty nights).
-3. **Show All Logs** — toggles the History list between night summaries and every stored
-   interaction (full date + time).
-4. **Clear Stored Data** (debug/POC) — wipes local storage.
+2. **Show night details** — reveals the per-night card list (see §4a).
+3. **Debug information** — reveals the collapsible Debug section (per-night summary lines +
+   technical counts + **Backfill Available History** + **Clear Stored Data**), collapsed by default.
 
-The screen shows: permission status, collection status, Last Night (the structural report),
-History (saved nights + estimated-sleep blocks + optional full interaction log), and a Debug
-block (timezone, window, raw vs filtered counts, saved-night count).
+The screen shows: permission status, collection status, **Last Night** (the structural report,
+unchanged technical wording), **compact History** ("estimated sleep" inactivity blocks, always
+visible), the **per-night cards** (behind "Show night details"), and the collapsible **Debug**
+section.
+
+### 4a. UI / logs / history organization (current)
+
+The technical logs were reorganized away from one giant global event dump:
+
+- **System-bar insets:** `ViewInsets.kt` adds `View.applySystemBarInsetsPadding()` — reads the
+  dynamic system-bar + display-cutout insets and pads the scroll content (baseline captured once,
+  so repeated dispatches never accumulate). Called on `contentRoot` from `MainActivity`. Fixes
+  edge-to-edge overlap on targetSdk 35 without disabling edge-to-edge.
+- **Debug is separate/collapsible:** a "Debug information" toggle (`debugSection`, gone by default).
+- **No more global raw dump:** the old "Show All Logs" (which merged every night via
+  `InteractionHistory.flatten` → thousands of events) was replaced.
+- **Per-night cards** (`item_night.xml`, built in `renderNightList`): the last 10 saved nights,
+  newest first. Each card:
+  - **Header** = date + estimated quiet-period duration only, e.g. `2026-06-15 · 7h 4m estimated`.
+  - **Friendly summary, always visible** (`formatNightCardBody`): main quiet/sleep-like period,
+    phone put down, first use after, pre-sleep 2h, possible interruptions, *Activity pattern*
+    (steady / interrupted / mostly active), *Data reliability* (high / medium / low). Observational
+    wording only — no clinical/sleep-quality claims. (The top **Last Night** card deliberately keeps
+    the original technical wording via `formatNightSummary`.)
+  - **Raw events per night** behind **"Show raw events for this night"**, hidden by default and
+    built **lazily** only when opened (`formatRawEvents`), from that night's stored
+    `NightRecord.events` only — never merged across nights.
+- **`InteractionHistory.flatten` is intentionally kept** (with its unit test) even though the UI no
+  longer calls it — a possible future cleanup if it stays unused, not removed now.
+- **No analyzer / storage-schema / UsageStats change** in any of this — presentation only.
 
 ---
 
