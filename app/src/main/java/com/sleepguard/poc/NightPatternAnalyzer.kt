@@ -181,45 +181,60 @@ class NightPatternAnalyzer(private val config: AnalysisConfig = AnalysisConfig()
             .filter { it.type == ScreenEventType.KEYGUARD_HIDDEN }
             .map { it.timestampMillis }
 
-        // Pair SCREEN_INTERACTIVE -> next SCREEN_NON_INTERACTIVE into raw sessions.
-        val sessions = mutableListOf<LongArray>() // [start, end]
+        // Pair SCREEN_INTERACTIVE -> next SCREEN_NON_INTERACTIVE into raw sessions, tracking HOW
+        // each session closed. A SCREEN_INTERACTIVE that never sees its own SCREEN_NON_INTERACTIVE
+        // (closed only by the NEXT SCREEN_INTERACTIVE, or still open at collection) has an UNKNOWN
+        // on-duration — it must NOT be stretched to the next event / effectiveEnd, or a passive
+        // blip (e.g. a notification-lit screen) becomes a fake multi-hour "use" that ends sleep (1a).
+        val sessions = mutableListOf<RawSession>()
         var openStart: Long? = null
         for (e in events) {
             when (e.type) {
                 ScreenEventType.SCREEN_INTERACTIVE -> {
                     val s = openStart
-                    if (s != null) sessions.add(longArrayOf(s, e.timestampMillis)) // close previous
+                    if (s != null) sessions.add(RawSession(s, s, SessionClose.MISSED_OFF)) // unknown end -> a point
                     openStart = e.timestampMillis
                 }
                 ScreenEventType.SCREEN_NON_INTERACTIVE -> {
                     val s = openStart
                     if (s != null) {
-                        sessions.add(longArrayOf(s, e.timestampMillis))
+                        sessions.add(RawSession(s, e.timestampMillis, SessionClose.CLOSED_OFF))
                         openStart = null
                     }
                 }
                 else -> Unit // KEYGUARD_* / UNKNOWN not used for session boundaries
             }
         }
-        openStart?.let { sessions.add(longArrayOf(it, effectiveEnd)) } // open at collection -> close at now
+        openStart?.let { sessions.add(RawSession(it, it, SessionClose.OPEN_AT_END)) } // unknown end -> a point
 
         val minOnMillis = config.meaningfulMinScreenOnSeconds * 1000L
         val result = mutableListOf<MeaningfulInteraction>()
         for (s in sessions) {
-            val rawStart = s[0]
-            val rawEnd = s[1]
-            val start = max(rawStart, anchors.windowStart)
-            val end = min(rawEnd, effectiveEnd)
-            val duration = end - start
-            if (duration <= 0L) continue
-
-            val wasUnlocked = keyguardHidden.any { it in rawStart..rawEnd }
-            val isRealUse = (config.treatUnlockAsMeaningful && wasUnlocked) || duration >= minOnMillis
-            if (isRealUse) {
-                result.add(MeaningfulInteraction(start, end, duration))
+            when (s.close) {
+                // Properly closed session: the on-duration is trustworthy -> original rule unchanged.
+                SessionClose.CLOSED_OFF -> {
+                    val start = max(s.start, anchors.windowStart)
+                    val end = min(s.end, effectiveEnd)
+                    val duration = end - start
+                    if (duration <= 0L) continue
+                    val wasUnlocked = keyguardHidden.any { it in s.start..s.end }
+                    val isRealUse =
+                        (config.treatUnlockAsMeaningful && wasUnlocked) || duration >= minOnMillis
+                    if (isRealUse) result.add(MeaningfulInteraction(start, end, duration))
+                }
+                // Unknown on-duration: a screen-on we never saw close cannot count as real use by
+                // duration. Only a genuine unlock NEAR ITS START makes it meaningful — and the unlock
+                // search is bounded so a far-away unlock (e.g. next morning) is NOT swallowed (1a).
+                SessionClose.MISSED_OFF, SessionClose.OPEN_AT_END -> {
+                    val point = s.start
+                    if (point < anchors.windowStart || point > effectiveEnd) continue
+                    val wasUnlocked = keyguardHidden.any { it in point..(point + UNLOCK_ASSOC_WINDOW) }
+                    if (config.treatUnlockAsMeaningful && wasUnlocked) {
+                        result.add(MeaningfulInteraction(point, point, 0L)) // duration unknown -> a point
+                    }
+                    // Otherwise a passive unclosed blip: dropped, must NOT break a quiet period.
+                }
             }
-            // Non-real-use sessions (notification glows, micro-taps) are intentionally
-            // dropped: they must NOT break a quiet period.
         }
         return result.sortedBy { it.startMillis }
     }
@@ -286,7 +301,14 @@ class NightPatternAnalyzer(private val config: AnalysisConfig = AnalysisConfig()
         return QuietBlockLabel.MICRO_QUIET_BLOCK
     }
 
+    /** How a raw screen-on session ended — determines whether its on-duration is trustworthy. */
+    private enum class SessionClose { CLOSED_OFF, MISSED_OFF, OPEN_AT_END }
+
+    private class RawSession(val start: Long, val end: Long, val close: SessionClose)
+
     private companion object {
         const val MIN = 60_000L // one minute in millis
+        /** Max gap between an unclosed Screen On and an Unlock for them to be treated as one event. */
+        const val UNLOCK_ASSOC_WINDOW = 60_000L
     }
 }

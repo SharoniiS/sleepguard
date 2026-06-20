@@ -344,6 +344,77 @@ class NightPatternAnalyzerTest {
         }
     }
 
+    // ---- 1a: unclosed / open Screen On must not fabricate REAL_USE ------
+
+    @Test
+    fun unclosedScreenOn_doesNotEndSleep() {
+        // 22:10 phone-down use, then a bare Screen On at 02:13 (no Screen Off, no unlock),
+        // then a real unlocked use at 10:00. The 02:13 blip must NOT split the sleep.
+        val blip = 4 * H + 13 * 60_000L // 02:13
+        val events =
+            use(10 * 60_000L) +
+            listOf(RawScreenEvent(blip, ScreenEventType.SCREEN_INTERACTIVE)) +
+            use(12 * H) +                 // 10:00 morning use
+            fill(13 * H, 20 * H, 80L)
+        val result = analyzer.analyze(events, anchors)
+
+        // The blip never becomes an interaction.
+        assertFalse(result.interactions.any { it.startMillis == blip })
+        // One uninterrupted sleep-like block spans the blip's timestamp.
+        assertTrue(result.quietBlocks.any { it.startMillis <= blip && it.endMillis >= blip && it.isSleepLike })
+        // Wake anchor is the real morning use, not the blip.
+        assertEquals(12 * H, result.firstUseAfterPrimaryRest)
+        assertTrue(result.nighttimeAwakenings.isEmpty())
+    }
+
+    @Test
+    fun openScreenOnAtCollection_isNotMultiHourUse() {
+        // Collected at 13:00 (now = 15H). A bare Screen On at 12:00 (14H), never closed, no unlock.
+        // Old code stretched it to now (1h "use"); it must instead be dropped.
+        val now = 15 * H
+        val blip = 14 * H
+        val events = use(10 * 60_000L) + use(9 * H) +
+            listOf(RawScreenEvent(blip, ScreenEventType.SCREEN_INTERACTIVE))
+        val result = analyzer.analyze(events, anchors, now)
+
+        assertFalse(result.interactions.any { it.startMillis == blip })
+        // The quiet after the 07:00 use is one block across the blip, not split at 12:00.
+        assertTrue(result.quietBlocks.any { it.startMillis <= blip && it.endMillis >= blip && it.isSleepLike })
+    }
+
+    @Test
+    fun farUnlockNotSwallowedByUnclosedScreenOn() {
+        // A bare Screen On at 03:00 (no Off, no nearby unlock); the next unlock belongs to the
+        // 07:00 use, hours later. The far unlock must NOT promote the 03:00 blip to REAL_USE.
+        val blip = 5 * H // 03:00
+        val events = use(10 * 60_000L) +
+            listOf(RawScreenEvent(blip, ScreenEventType.SCREEN_INTERACTIVE)) +
+            fill(9 * H, 20 * H, 80L)      // active day from 07:00; its first unlock is far from the blip
+        val result = analyzer.analyze(events, anchors)
+
+        assertFalse(result.interactions.any { it.startMillis == blip })
+        assertTrue(result.quietBlocks.any { it.startMillis <= blip && it.endMillis >= blip && it.isSleepLike })
+        assertTrue(result.nighttimeAwakenings.isEmpty())
+    }
+
+    @Test
+    fun quickUnlockAfterMissedOff_stillCounts() {
+        // Regression guard: a genuine quick unlock right after an unclosed Screen On (within the
+        // association window) is still REAL_USE — we only drop unclosed blips with NO nearby unlock.
+        val t = 5 * H // 03:00
+        val events = use(10 * 60_000L) +
+            listOf(
+                RawScreenEvent(t, ScreenEventType.SCREEN_INTERACTIVE),
+                RawScreenEvent(t + 1_000L, ScreenEventType.KEYGUARD_HIDDEN)
+            ) +
+            fill(9 * H, 20 * H, 80L)      // active day from 07:00 (first use closes the night)
+        val result = analyzer.analyze(events, anchors)
+
+        assertTrue(result.interactions.any { it.startMillis == t })
+        // It sits between two sleep-like blocks -> counted as one awakening.
+        assertEquals(1, result.nighttimeAwakenings.size)
+    }
+
     // ---- Empty input ----------------------------------------------------
 
     @Test
