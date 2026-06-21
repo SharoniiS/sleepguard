@@ -280,11 +280,14 @@ class NightPatternAnalyzerTest {
     }
 
     @Test
-    fun restPattern_fragmented_withAwakenings() {
+    fun oneShortAwakeningStillConsolidated() {
+        // 0.3: one brief unlocked check (03:00), quiet returns -> bridged -> CONSOLIDATED.
+        // (This input was previously asserted FRAGMENTED; that assertion encoded the 0.3 bug.)
         val events = use(10 * 60_000L) + use(5 * H) + fill(9 * H, 20 * H, 80L)
         val result = analyzer.analyze(events, anchors)
 
-        assertEquals(RestPattern.FRAGMENTED, result.restPattern)
+        assertEquals(RestPattern.CONSOLIDATED, result.restPattern)
+        assertEquals(1, result.nighttimeAwakenings.size)
     }
 
     @Test
@@ -342,6 +345,63 @@ class NightPatternAnalyzerTest {
                 assertEquals(RestRole.BRIEF_QUIET, period.role)
             }
         }
+    }
+
+    // ---- 0.3: bridged main rest episode ---------------------------------
+
+    @Test
+    fun shortUnlockedUseFollowedByQuiet_bridgesPrimaryRest() {
+        // Sleep, a brief unlocked check at 03:00, back to sleep until 07:00.
+        val events = use(10 * 60_000L) + use(5 * H) + fill(9 * H, 20 * H, 80L)
+        val result = analyzer.analyze(events, anchors)
+
+        val episode = result.mainRestEpisode!!
+        // The episode extends past the brief check to the real morning, beyond the primary block.
+        assertEquals(9 * H, episode.endMillis)
+        assertTrue(episode.endMillis > result.primaryRest!!.block.endMillis)
+    }
+
+    @Test
+    fun firstUseAfterPrimaryRest_isFinalMorningUseNotShortInterruption() {
+        val events = use(10 * 60_000L) + use(5 * H) + fill(9 * H, 20 * H, 80L)
+        val result = analyzer.analyze(events, anchors)
+
+        // The bridged field points at the real morning; the primary-block field still sees the check.
+        assertEquals(9 * H, result.firstUseAfterMainRest)
+        assertEquals(5 * H, result.firstUseAfterPrimaryRest)
+    }
+
+    @Test
+    fun historyUsesBridgedEpisode() {
+        val events = use(10 * 60_000L) + use(5 * H) + fill(9 * H, 20 * H, 80L)
+        val result = analyzer.analyze(events, anchors)
+        val record = NightRecordMapper.toRecord(result, events, 0, "2026-06-21", 0L, AnalysisConfig())
+
+        val blocks = InteractionHistory.longInactivities(record, 4 * H)
+        // One inactivity = the bridged episode (not the shorter primary block + filtered secondary).
+        assertEquals(1, blocks.size)
+        assertEquals(record.mainRestEpisode!!.durationMillis, blocks[0].durationMillis)
+    }
+
+    @Test
+    fun longUnlockedWakeDoesNotBridge() {
+        // A ~42-min active wake between two sleep blocks exceeds awakeningMax(30m) -> not bridged.
+        val events = use(10 * 60_000L) + use(3 * H) + use(3 * H + 40 * 60_000L) + fill(9 * H, 20 * H, 80L)
+        val result = analyzer.analyze(events, anchors)
+
+        // The episode is NOT extended past the primary block; the night is FRAGMENTED.
+        assertEquals(result.primaryRest!!.block.endMillis, result.mainRestEpisode!!.endMillis)
+        assertEquals(RestPattern.FRAGMENTED, result.restPattern)
+    }
+
+    @Test
+    fun multipleSignificantAwakeningsCanBeFragmented() {
+        // Two brief bridged interruptions (01:00, 04:00) -> 2 awakenings in one run -> FRAGMENTED.
+        val events = use(10 * 60_000L) + use(3 * H) + use(6 * H) + fill(9 * H, 20 * H, 80L)
+        val result = analyzer.analyze(events, anchors)
+
+        assertEquals(2, result.nighttimeAwakenings.size)
+        assertEquals(RestPattern.FRAGMENTED, result.restPattern)
     }
 
     // ---- 1a: unclosed / open Screen On must not fabricate REAL_USE ------

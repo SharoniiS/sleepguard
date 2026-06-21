@@ -33,7 +33,11 @@ object NightRecordMapper {
         rawEventCount = rawEventCount,
         filteredEventCount = events.size,
         config = toStoredConfig(config),
-        events = events.map { StoredEvent(it.timestampMillis, it.type.name) }
+        events = events.map { StoredEvent(it.timestampMillis, it.type.name) },
+        mainRestEpisode = result.mainRestEpisode?.let {
+            StoredMainEpisode(it.startMillis, it.endMillis, it.durationMillis)
+        },
+        firstUseAfterMainRestMillis = result.firstUseAfterMainRest
     )
 
     private fun toBlock(period: RestPeriod): StoredBlock = StoredBlock(

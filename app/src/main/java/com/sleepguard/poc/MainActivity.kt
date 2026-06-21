@@ -284,14 +284,14 @@ class MainActivity : AppCompatActivity() {
     private fun formatNightSummary(record: NightRecord): String = buildString {
         appendLine("Night of ${record.nightOf}")
         appendLine("Pattern: ${humanRestPattern(record.restPattern)}")
-        val pr = record.primaryRest
-        if (pr == null) {
+        val rest = displaySleep(record)
+        if (rest == null) {
             appendLine("No long sleep-like period found.")
         } else {
-            appendLine("Main sleep-like period: ${fmt(pr.startMillis)}–${fmt(pr.endMillis)} (${durHuman(pr.durationMillis)})")
+            appendLine("Main sleep-like period: ${fmt(rest.first)}–${fmt(rest.second)} (${durHuman(rest.third)})")
         }
         appendLine("Phone put down: ${fmt(record.phoneDownMillis)}")
-        appendLine("First use after: ${fmt(record.firstUseAfterPrimaryRestMillis)}")
+        appendLine("First use after: ${fmt(displayFirstUseAfter(record))}")
         appendLine(
             "Pre-sleep phone use (2h): " +
                 (record.preSleepPhoneTimeMillis?.let { durHuman(it) } ?: "Unknown")
@@ -315,8 +315,8 @@ class MainActivity : AppCompatActivity() {
         container.removeAllViews()
         for (record in records.sortedByDescending { it.nightOf }) {
             val card = ItemNightBinding.inflate(layoutInflater, container, false)
-            val estimate = record.primaryRest
-                ?.let { "${durHuman(it.durationMillis)} estimated" } ?: "no main quiet period"
+            val estimate = displaySleep(record)
+                ?.let { "${durHuman(it.third)} estimated" } ?: "no main quiet period"
             card.nightHeaderText.text = "${record.nightOf} · $estimate"
             card.nightSummaryText.text = formatNightCardBody(record)
 
@@ -344,13 +344,13 @@ class MainActivity : AppCompatActivity() {
      * card header, so they are not repeated here.
      */
     private fun formatNightCardBody(record: NightRecord): String = buildString {
-        val pr = record.primaryRest
+        val rest = displaySleep(record)
         appendLine(
             "Main quiet / sleep-like period: " +
-                if (pr == null) "none found" else "${fmt(pr.startMillis)}–${fmt(pr.endMillis)}"
+                if (rest == null) "none found" else "${fmt(rest.first)}–${fmt(rest.second)}"
         )
         appendLine("Phone put down: ${fmt(record.phoneDownMillis)}")
-        appendLine("First use after: ${fmt(record.firstUseAfterPrimaryRestMillis)}")
+        appendLine("First use after: ${fmt(displayFirstUseAfter(record))}")
         appendLine(
             "Pre-sleep phone use in the last 2 hours: " +
                 (record.preSleepPhoneTimeMillis?.let { durHuman(it) } ?: "Unknown")
@@ -394,7 +394,7 @@ class MainActivity : AppCompatActivity() {
                 getString(R.string.history_empty)
             } else {
                 records.sortedByDescending { it.nightOf }.joinToString("\n") { r ->
-                    val rest = r.primaryRest?.let { "${fmt(it.startMillis)}–${fmt(it.endMillis)}" } ?: "no primary rest"
+                    val rest = displaySleep(r)?.let { "${fmt(it.first)}–${fmt(it.second)}" } ?: "no primary rest"
                     "- ${r.nightOf}  ${humanRestPattern(r.restPattern)}  $rest  ${r.confidence}  (${r.events.size} events)"
                 }
             }
@@ -416,6 +416,20 @@ class MainActivity : AppCompatActivity() {
         val m = totalMin % 60
         return if (h > 0) "${h}h ${m}m" else "${m}m"
     }
+
+    /**
+     * 0.3: the sleep span to display — the bridged [NightRecord.mainRestEpisode] if present, else
+     * the single longest [NightRecord.primaryRest] block (pre-v2 records / fallback). (start, end, dur)
+     */
+    private fun displaySleep(r: NightRecord): Triple<Long, Long, Long>? {
+        r.mainRestEpisode?.let { return Triple(it.startMillis, it.endMillis, it.durationMillis) }
+        r.primaryRest?.let { return Triple(it.startMillis, it.endMillis, it.durationMillis) }
+        return null
+    }
+
+    /** 0.3: first use after the displayed sleep span (the bridged episode's, or the primary block's). */
+    private fun displayFirstUseAfter(r: NightRecord): Long? =
+        if (r.mainRestEpisode != null) r.firstUseAfterMainRestMillis else r.firstUseAfterPrimaryRestMillis
 
     private fun humanRestPattern(name: String): String = when (name) {
         "CONSOLIDATED" -> "Consolidated"

@@ -18,8 +18,13 @@ import kotlinx.serialization.Serializable
  *    >>> Production / Base44 sync MUST use the summary fields only, NOT the raw events. <<<
  */
 
-/** Bump when the on-disk shape of [NightRecord] changes (enables future migrations). */
-const val STORAGE_SCHEMA_VERSION = 1
+/**
+ * Bump when the on-disk shape of [NightRecord] changes (enables future migrations).
+ * v2 (0.3): added nullable [NightRecord.mainRestEpisode] + [NightRecord.firstUseAfterMainRestMillis].
+ * Non-destructive: both fields default to null, so v1 records still deserialize, and
+ * [NightRepository.loadAll] does not gate on this version (nothing is dropped).
+ */
+const val STORAGE_SCHEMA_VERSION = 2
 
 @Serializable
 data class NightRecord(
@@ -49,7 +54,10 @@ data class NightRecord(
     val filteredEventCount: Int,
     val config: StoredConfig,         // analyzer config snapshot used for this record
     /** DEBUG/POC ONLY — filtered raw events (timestamp + type, no content). Not for sync. */
-    val events: List<StoredEvent>
+    val events: List<StoredEvent>,
+    // --- 0.3 (additive; nullable WITH defaults so pre-v2 records still deserialize) ---
+    val mainRestEpisode: StoredMainEpisode? = null,
+    val firstUseAfterMainRestMillis: Long? = null
 )
 
 @Serializable
@@ -59,6 +67,14 @@ data class StoredBlock(
     val durationMillis: Long,
     val role: String,                 // RestRole.name
     val label: String                 // QuietBlockLabel.name (both models coexist for now)
+)
+
+/** 0.3: the bridged main sleep episode (primary block extended across short interruptions). */
+@Serializable
+data class StoredMainEpisode(
+    val startMillis: Long,
+    val endMillis: Long,
+    val durationMillis: Long
 )
 
 /** A filtered raw event reduced to timestamp + type name. Debug/testing only. */

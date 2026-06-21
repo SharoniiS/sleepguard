@@ -144,6 +144,17 @@ data class RestPeriod(
 )
 
 /**
+ * 0.3: the bridged MAIN REST EPISODE — the primary block extended across sleep-like blocks that are
+ * joined by short (<= awakeningMaxMinutes) interruptions. It spans brief awakenings, so the headline
+ * and History display THIS as the central sleep. `primaryRest` stays the single longest block.
+ */
+data class MainRestEpisode(
+    val startMillis: Long,
+    val endMillis: Long,
+    val durationMillis: Long
+)
+
+/**
  * Full result of the MVP pattern analysis.
  *
  * Nullable Long fields represent UNKNOWN (e.g. phoneDownTime when the window
@@ -167,5 +178,8 @@ data class NightPatternResult(
     val restPeriods: List<RestPeriod>,        // one per quiet block, chronological order
     val primaryRest: RestPeriod?,             // the PRIMARY_REST period, or null
     val secondaryRests: List<RestPeriod>,     // SECONDARY_REST periods, duration descending
-    val firstUseAfterPrimaryRest: Long?       // structural; UNKNOWN -> null
+    val firstUseAfterPrimaryRest: Long?,      // structural; UNKNOWN -> null
+    // --- 0.3: bridged main rest episode (the source the headline + History should display) ---
+    val mainRestEpisode: MainRestEpisode?,    // primary bridged across short interruptions; null = none
+    val firstUseAfterMainRest: Long?          // first use after the whole bridged episode; UNKNOWN -> null
 )

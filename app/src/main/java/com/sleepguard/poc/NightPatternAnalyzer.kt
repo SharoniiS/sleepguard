@@ -47,7 +47,9 @@ class NightPatternAnalyzer(private val config: AnalysisConfig = AnalysisConfig()
         //     through SHORT (<= awakeningMax) interruptions. Each crossed interruption
         //     is one nighttime awakening (lower bound). mainEnd anchors "first use after". ---
         val awakeningMaxMillis = config.awakeningMaxMinutes * MIN
+        var mainStart: Long? = null
         var mainEnd: Long? = null
+        var mainRunSize = 0
         val awakenings = mutableListOf<Long>()
         if (primary != null) {
             val idx = sleepLike.indexOf(primary)
@@ -59,8 +61,21 @@ class NightPatternAnalyzer(private val config: AnalysisConfig = AnalysisConfig()
             while (hi < sleepLike.size - 1 &&
                 sleepLike[hi + 1].startMillis - sleepLike[hi].endMillis <= awakeningMaxMillis
             ) hi++
+            mainStart = sleepLike[lo].startMillis
             mainEnd = sleepLike[hi].endMillis
+            mainRunSize = hi - lo + 1
             for (j in (lo + 1)..hi) awakenings.add(sleepLike[j - 1].endMillis)
+        }
+
+        // --- 0.3: the bridged MAIN REST EPISODE (primary + sleep-like blocks joined by short
+        //     interruptions) and the first use after it. The headline + History display these;
+        //     primaryRest / firstUseAfterPrimaryRest (single longest block) stay unchanged. ---
+        val mainRestEpisode: MainRestEpisode? =
+            if (mainStart != null && mainEnd != null)
+                MainRestEpisode(mainStart, mainEnd, mainEnd - mainStart)
+            else null
+        val firstUseAfterMainRest: Long? = mainEnd?.let { me ->
+            interactions.filter { it.startMillis >= me }.minByOrNull { it.startMillis }?.startMillis
         }
 
         // --- phoneDownTime: end of the last REAL_USE before the primary block.
@@ -138,9 +153,13 @@ class NightPatternAnalyzer(private val config: AnalysisConfig = AnalysisConfig()
         val secondaryRests = restPeriods
             .filter { it.role == RestRole.SECONDARY_REST }
             .sortedByDescending { it.block.durationMillis }
+        // 0.3: one main episode with 0–1 bridged interruptions is CONSOLIDATED. FRAGMENTED only when
+        // there are 2+ awakenings inside the episode, OR a sleep-like block that could not be bridged
+        // into the main run (a second significant rest period).
         val restPattern = when {
             sleepLike.isEmpty() -> RestPattern.MINIMAL_REST
-            sleepLike.size >= 2 || awakenings.size >= 2 -> RestPattern.FRAGMENTED
+            awakenings.size >= 2 -> RestPattern.FRAGMENTED
+            sleepLike.size - mainRunSize >= 1 -> RestPattern.FRAGMENTED
             else -> RestPattern.CONSOLIDATED
         }
         val firstUseAfterPrimaryRest = primary?.let { p ->
@@ -163,7 +182,9 @@ class NightPatternAnalyzer(private val config: AnalysisConfig = AnalysisConfig()
             restPeriods = restPeriods,
             primaryRest = primaryRest,
             secondaryRests = secondaryRests,
-            firstUseAfterPrimaryRest = firstUseAfterPrimaryRest
+            firstUseAfterPrimaryRest = firstUseAfterPrimaryRest,
+            mainRestEpisode = mainRestEpisode,
+            firstUseAfterMainRest = firstUseAfterMainRest
         )
     }
 
