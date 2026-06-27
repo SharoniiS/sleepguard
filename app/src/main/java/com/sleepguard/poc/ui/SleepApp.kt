@@ -24,6 +24,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -111,10 +114,12 @@ private fun HomeScreen(latest: NightRecord?) {
     Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
         Text(latest.nightOf, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(24.dp))
-        Text(
-            if (q != null) "${fmt(q.first)} – ${fmt(q.second)}" else "—",
-            fontSize = 34.sp, fontWeight = FontWeight.Bold
-        )
+        Ltr {
+            Text(
+                if (q != null) "${fmt(q.first)} – ${fmt(q.second)}" else "—",
+                fontSize = 34.sp, fontWeight = FontWeight.Bold
+            )
+        }
         Text("חלון חוסר פעילות", color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(20.dp))
         Text(if (q != null) dur(q.third) else "—", fontSize = 30.sp, fontWeight = FontWeight.Bold)
@@ -148,7 +153,7 @@ private fun HistoryScreen(nights: List<NightRecord>) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(if (q != null) dur(q.third) else "—", fontWeight = FontWeight.Bold)
-                    Text(if (q != null) "${fmt(q.first)} – ${fmt(q.second)}" else "—")
+                    Ltr { Text(if (q != null) "${fmt(q.first)} – ${fmt(q.second)}" else "—") }
                     Column(horizontalAlignment = Alignment.End) {
                         Text(n.nightOf, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
                         Spacer(Modifier.height(4.dp))
@@ -184,6 +189,12 @@ private fun MoreInfoScreen() {
 }
 
 // ---------------------------------------------------------------- small pieces
+
+/** Forces left-to-right layout for its content (e.g. a HH:mm–HH:mm range inside the RTL UI). */
+@Composable
+private fun Ltr(content: @Composable () -> Unit) {
+    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr, content = content)
+}
 
 @Composable
 private fun Chip(text: String) {
