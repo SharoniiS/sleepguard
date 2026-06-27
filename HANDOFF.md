@@ -181,6 +181,17 @@ sync Gradle (downloads Compose) + run in Android Studio; report any compile erro
   `addMedication`.
 - NOT built here — rebuild + report compile errors.
 
+**2026-06-27 — Visual redesign, Stage 1 (foundation).** Implementing the Base44-quality design in
+Compose (see [`DESIGN_SYSTEM.md`](DESIGN_SYSTEM.md)); staged. Stage 1:
+- **Theme**: real palette (`Color.kt`) + **Rubik/Assistant** bundled fonts (`res/font`, `Type.kt`) →
+  `Theme.kt` now uses the navy `darkColorScheme` + `SgTypography` + body font via `LocalTextStyle`
+  (RTL kept). This upgrades every screen's colors + type at once.
+- **Owl assets** downloaded to `res/drawable` (`owl_full`, `owl_circle`, `owl_banner`).
+- **`HeroBanner`** component (owl banner art + dynamic Hebrew title over a scrim); wired into Home
+  (with `dateWithDay` subtitle) and History; removed the placeholder `Hero`. Home big numbers use Rubik.
+- Next stages: report hero + back overlay, glass cards / gradients (`sg-card`/`sg-card-raised`), the
+  `OwlInsight` gradient card, richer timeline, and per-screen polish.
+
 **2026-06-27 — Build fix + cleanup + docs.** Fixed the build: the medications picker used the
 experimental `ExposedDropdownMenu` (unresolved in Material3 BOM 2024.06) → replaced with a stable
 `OutlinedButton` + `DropdownMenu` (same behavior, no `@OptIn`). Removed unused imports

@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
@@ -159,18 +161,21 @@ private fun HomeScreen(latest: NightRecord?) {
         return
     }
     val q = quiet(latest)
-    Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(dateShort(latest.nightOf), color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Spacer(Modifier.height(24.dp))
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        HeroBanner("בית", subtitle = dateWithDay(latest.nightOf))
+        Spacer(Modifier.height(20.dp))
         Ltr {
             Text(
                 if (q != null) "${fmt(q.first)} – ${fmt(q.second)}" else "—",
-                fontSize = 34.sp, fontWeight = FontWeight.Bold
+                fontFamily = Rubik, fontSize = 34.sp, fontWeight = FontWeight.Bold
             )
         }
         Text("חלון חוסר פעילות", color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(20.dp))
-        Text(if (q != null) dur(q.third) else "—", fontSize = 30.sp, fontWeight = FontWeight.Bold)
+        Text(if (q != null) dur(q.third) else "—", fontFamily = Rubik, fontSize = 30.sp, fontWeight = FontWeight.Bold)
         Text("משך חוסר הפעילות", color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(16.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -192,7 +197,7 @@ private fun HomeScreen(latest: NightRecord?) {
 @Composable
 private fun HistoryScreen(nights: List<NightRecord>, onOpen: (NightRecord) -> Unit) {
     LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { Hero("היסטוריה") }
+        item { HeroBanner("היסטוריה") }
         items(nights) { n -> HistoryRow(n) { onOpen(n) } }
     }
 }
@@ -224,24 +229,6 @@ private fun HistoryRow(n: NightRecord, onClick: () -> Unit) {
             }
             Chip(patternHe(n.restPattern))
             ProgressTrack((q?.third ?: 0L).toFloat() / TEN_HOURS_MS, color)
-        }
-    }
-}
-
-@Composable
-private fun Hero(title: String) {
-    Surface(
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        shape = RoundedCornerShape(20.dp),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(
-            Modifier.fillMaxWidth().padding(vertical = 20.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text("🌙 SleepGuard", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(6.dp))
-            Text(title, fontSize = 22.sp, fontWeight = FontWeight.Bold)
         }
     }
 }
