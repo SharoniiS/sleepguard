@@ -1,17 +1,21 @@
 package com.sleepguard.poc.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -29,6 +33,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -37,7 +43,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.sleepguard.poc.NightRecord
 import com.sleepguard.poc.SleepViewModel
+import java.time.DayOfWeek
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
@@ -131,7 +139,7 @@ private fun HomeScreen(latest: NightRecord?) {
     }
     val q = quiet(latest)
     Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(latest.nightOf, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(dateShort(latest.nightOf), color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(24.dp))
         Ltr {
             Text(
@@ -162,26 +170,84 @@ private fun HomeScreen(latest: NightRecord?) {
 
 @Composable
 private fun HistoryScreen(nights: List<NightRecord>, onOpen: (NightRecord) -> Unit) {
-    LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        items(nights) { n ->
-            val q = quiet(n)
-            Card(Modifier.fillMaxWidth().clickable { onOpen(n) }) {
+    LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        item { Hero("היסטוריה") }
+        items(nights) { n -> HistoryRow(n) { onOpen(n) } }
+    }
+}
+
+@Composable
+private fun HistoryRow(n: NightRecord, onClick: () -> Unit) {
+    val q = quiet(n)
+    val color = patternColor(n.restPattern)
+    Card(Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+        Column(
+            Modifier.fillMaxWidth().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Row(
-                    Modifier.fillMaxWidth().padding(14.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(if (q != null) dur(q.third) else "—", fontWeight = FontWeight.Bold)
-                    Ltr { Text(if (q != null) "${fmt(q.first)} – ${fmt(q.second)}" else "—") }
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text(n.nightOf, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
-                        Spacer(Modifier.height(4.dp))
-                        Chip(patternHe(n.restPattern))
-                    }
+                    StatusDot(color)
+                    Text(dateWithDay(n.nightOf), fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
+                Ltr { Text(if (q != null) "${fmt(q.first)} – ${fmt(q.second)}" else "—", fontSize = 15.sp) }
+                Text(if (q != null) dur(q.third) else "—", fontWeight = FontWeight.Bold, fontSize = 18.sp)
             }
+            Chip(patternHe(n.restPattern))
+            ProgressTrack((q?.third ?: 0L).toFloat() / TEN_HOURS_MS, color)
         }
     }
+}
+
+@Composable
+private fun Hero(title: String) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = RoundedCornerShape(20.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            Modifier.fillMaxWidth().padding(vertical = 20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text("🌙 SleepGuard", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(6.dp))
+            Text(title, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
+private fun StatusDot(color: Color) {
+    Box(Modifier.size(10.dp).clip(CircleShape).background(color))
+}
+
+@Composable
+private fun ProgressTrack(fraction: Float, color: Color) {
+    Box(
+        Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp))
+            .background(MaterialTheme.colorScheme.surface)
+    ) {
+        Box(
+            Modifier.fillMaxWidth(fraction.coerceIn(0f, 1f)).fillMaxHeight()
+                .clip(RoundedCornerShape(3.dp)).background(color)
+        )
+    }
+}
+
+@Composable
+private fun patternColor(p: String): Color = when (p) {
+    "CONSOLIDATED" -> Color(0xFF34C759)
+    "FRAGMENTED" -> Color(0xFFFF9F0A)
+    else -> MaterialTheme.colorScheme.onSurfaceVariant
 }
 
 // ---------------------------------------------------------------- More info
@@ -283,4 +349,47 @@ internal fun availabilityHe(c: String): String = when (c) {
     "MEDIUM" -> "נתונים חלקיים"
     "LOW" -> "נתונים מועטים"
     else -> c
+}
+
+/** Reference span for the History progress bar (10h = a "full" bar). */
+private const val TEN_HOURS_MS = 36_000_000f
+
+private val ddmmyy = DateTimeFormatter.ofPattern("dd-MM-yy")
+
+/** "2026-06-27" -> "27-06-26". */
+internal fun dateShort(nightOf: String): String =
+    runCatching { LocalDate.parse(nightOf).format(ddmmyy) }.getOrDefault(nightOf)
+
+/** "2026-06-27" -> "יום ו', 27.6". */
+internal fun dateWithDay(nightOf: String): String = runCatching {
+    val d = LocalDate.parse(nightOf)
+    "${hebrewDay(d.dayOfWeek)}, ${d.dayOfMonth}.${d.monthValue}"
+}.getOrDefault(nightOf)
+
+private fun hebrewDay(dow: DayOfWeek): String = when (dow) {
+    DayOfWeek.SUNDAY -> "יום א'"
+    DayOfWeek.MONDAY -> "יום ב'"
+    DayOfWeek.TUESDAY -> "יום ג'"
+    DayOfWeek.WEDNESDAY -> "יום ד'"
+    DayOfWeek.THURSDAY -> "יום ה'"
+    DayOfWeek.FRIDAY -> "יום ו'"
+    DayOfWeek.SATURDAY -> "שבת"
+}
+
+private fun hoursHe(h: Long): String = when (h) {
+    1L -> "שעה"
+    2L -> "שעתיים"
+    else -> "$h שעות"
+}
+
+/** Hebrew duration, e.g. "6 שעות ו-57 דקות" / "שעתיים" / "45 דקות". */
+internal fun durHe(ms: Long): String {
+    val totalMin = ms / 60000
+    val h = totalMin / 60
+    val m = totalMin % 60
+    return when {
+        h > 0 && m > 0 -> "${hoursHe(h)} ו-$m דקות"
+        h > 0 -> hoursHe(h)
+        else -> "$m דקות"
+    }
 }

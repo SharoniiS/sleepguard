@@ -83,7 +83,7 @@ private fun NightReport(
             Spacer(Modifier.weight(1f))
             Column(horizontalAlignment = Alignment.End) {
                 Text("דו\"ח פעילות יומי", fontWeight = FontWeight.Bold)
-                Text(record.nightOf, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(dateShort(record.nightOf), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
 
@@ -308,10 +308,18 @@ private fun SelectChip(text: String, selected: Boolean, onClick: () -> Unit) {
 
 // ---------------------------------------------------------------- factual text + labels
 
-/** Short factual summary line at the top of the report. */
+/** Short summary line at the top of the report. */
 internal fun summaryHe(r: NightRecord): String {
     val q = quiet(r) ?: return "לא זוהתה תקופת חוסר-פעילות ארוכה בלילה זה."
-    return "פעילות הטלפון הייתה ${patternHe(r.restPattern)}. החלון הארוך ביותר ללא שימוש: ${dur(q.third)}."
+    return "פעילות הטלפון הייתה ${patternFem(r.restPattern)}. חלון השינה שנצפה הוא ${durHe(q.third)}."
+}
+
+/** Feminine adjective form for the summary sentence (chips use the short masculine [patternHe]). */
+private fun patternFem(p: String): String = when (p) {
+    "CONSOLIDATED" -> "רצופה"
+    "FRAGMENTED" -> "מקוטעת"
+    "MINIMAL_REST" -> "פעילה ברובה"
+    else -> p
 }
 
 /** Factual "owl insight" — observational, no soft judgments (per the UX-wording rules). */
