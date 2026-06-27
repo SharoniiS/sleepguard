@@ -1,13 +1,18 @@
 package com.sleepguard.poc
 
+import android.content.Intent
 import android.content.res.Configuration
 import android.os.Bundle
 import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.FileProvider
 import androidx.core.view.WindowCompat
 import com.sleepguard.poc.databinding.ActivityMainBinding
 import com.sleepguard.poc.databinding.ItemNightBinding
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import java.io.File
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
@@ -27,7 +32,10 @@ import java.time.format.DateTimeFormatter
  *
  * Sleep is analyzed on the 22:00->18:00 window, but events are CAPTURED for a full 24h day
  * (so the log misses nothing). The analyzer ignores events outside its window, so the sleep
- * analysis is unaffected. Saved data auto-loads on launch. No background work.
+ * analysis is unaffected. On every open (when Usage Access is granted) Backfill probes the last
+ * backfillLookbackDays nights but stores only nights NOT already saved (capture-once): a night is
+ * captured once when fresh and then frozen, so a later retention-degraded re-read can't overwrite a
+ * good record. Clear wipes local storage for a fresh reseed. No background work.
  */
 class MainActivity : AppCompatActivity() {
 
@@ -39,10 +47,16 @@ class MainActivity : AppCompatActivity() {
     private val patternAnalyzer by lazy { NightPatternAnalyzer(analysisConfig) }
     private val repository by lazy { NightRepository(this) }
 
-    /** How many days back "Backfill" probes. Configurable. */
-    private val backfillLookbackDays = 10
+    /** Pretty JSON for the debug "Export backup" action. */
+    private val exportJson by lazy { Json { prettyPrint = true; encodeDefaults = true } }
 
-    /** A quiet period at least this long counts as estimated sleep. Configurable (currently 4h). */
+    /** How many days back "Backfill" probes. 9, not 10: Android trims raw usage events at a ~9–10
+     *  day rolling edge, so the 10th day is prone to retention-degradation (it comes back as a
+     *  partial "15h" night). 9 keeps the oldest probed night safely inside the retention window. */
+    private val backfillLookbackDays = 9
+
+    /** Preferred minimum for an "estimated sleep" window in the History list (currently 4h). If a
+     *  night has no window this long, the list falls back to the single longest detected window. */
     private val estimatedSleepMinMillis = 4L * 60L * 60L * 1000L
 
     private var showNightDetails = false
@@ -82,13 +96,30 @@ class MainActivity : AppCompatActivity() {
             binding.debugToggleButton.text =
                 getString(if (showDebug) R.string.button_hide_debug else R.string.button_show_debug)
         }
+        binding.exportJsonButton.setOnClickListener { exportBackupJson() }
     }
 
     override fun onResume() {
         super.onResume()
         refreshPermissionState()
-        renderFromStorage()              // auto-load saved data on launch / return from Settings
-        binding.debugText.text = baselineDebug()
+        // Auto-collect on every open (no explicit button press needed) via collectBackfill(). It
+        // captures only nights NOT already stored (capture-once) and skips empty ones, so a later
+        // retention-degraded re-read never overwrites a good record. Only when Usage Access is
+        // granted; otherwise just show what's already saved (no error spam on each open).
+        // collectBackfill() re-renders from storage + refreshes the debug text itself.
+        if (usageAccessManager.hasUsageAccess()) {
+            // Defensive: never let an auto-collect failure trap the user in a crash-on-open loop —
+            // fall back to showing whatever is already saved.
+            try {
+                collectBackfill()
+            } catch (t: Throwable) {
+                renderFromStorage()
+                binding.debugText.text = "Auto-collect failed on open: ${t.message}\n" + baselineDebug()
+            }
+        } else {
+            renderFromStorage()
+            binding.debugText.text = baselineDebug()
+        }
     }
 
     private fun refreshPermissionState() {
@@ -182,9 +213,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Probes the last [backfillLookbackDays] nights and saves each one that still has data.
-     * Android prunes raw usage events after a few days, so this is "available" history, not a true
-     * maximum. Empty nights are skipped (never overwrite a good record with an empty one).
+     * Probes the last [backfillLookbackDays] nights. Saves a night only if it is NOT already stored
+     * (capture-once): the first fresh capture is frozen, so a later retention-degraded re-read never
+     * overwrites a good record. Empty nights are skipped too. Every night is still probed for the
+     * retention-cutoff readout. Android prunes raw usage events after ~9-10 days, so this is
+     * "available" history, not a true maximum. Clear resets so a reseed re-collects fresh.
      */
     private fun collectBackfill() {
         if (!ensurePermission()) return
@@ -192,6 +225,25 @@ class MainActivity : AppCompatActivity() {
         val today = LocalDate.now(zone)
         var saved = 0
         var earliest: Long? = null
+
+        // Capture-once: a COMPLETE saved night is frozen. We still probe every night for the
+        // retention-cutoff readout, but never overwrite a good (complete) record with a later
+        // (possibly retention-degraded) re-read. Clear resets this so a reseed re-collects fresh.
+        //
+        // KNOWN EDGE CASE (premature freeze): if the app is opened in the MIDDLE of a night,
+        // BEFORE the user has slept, that night is captured with only the pre-sleep evening events
+        // (the analyzer's future-window cap limits analysis to "now"), and capture-once then freezes
+        // it — so the real sleep, which happens later, is never re-read and the night stays
+        // "active / no quiet period" forever. Workaround: "Clear Stored Data" wipes the frozen
+        // records; a later re-collect (after the night ends) captures them complete.
+        // Fix (implemented): freeze only COMPLETE nights; re-capture an INCOMPLETE one
+        // (collectedAt < windowEnd, see [isCompleteNight]) so a premature mid-night capture
+        // self-heals once the night ends — no manual "Clear Stored Data" needed. A complete night
+        // stays frozen, so the retention-degradation protection for good records is preserved.
+        val completeNights = repository.loadAll()
+            .filter { isCompleteNight(it) }
+            .map { it.nightOf }
+            .toSet()
 
         for (k in 0 until backfillLookbackDays) {
             val morning = today.minusDays(k.toLong())
@@ -203,6 +255,12 @@ class MainActivity : AppCompatActivity() {
             }
             if (collection.events.isEmpty()) continue
 
+            collection.events.minByOrNull { it.timestampMillis }?.let { e ->
+                earliest = if (earliest == null) e.timestampMillis else minOf(earliest!!, e.timestampMillis)
+            }
+
+            if (morning.toString() in completeNights) continue   // already captured COMPLETE -> frozen
+
             val now = Instant.now().toEpochMilli()
             val result = patternAnalyzer.analyze(collection.events, anchorsForNight(morning), now)
             repository.upsert(
@@ -211,9 +269,6 @@ class MainActivity : AppCompatActivity() {
                 )
             )
             saved++
-            collection.events.minByOrNull { it.timestampMillis }?.let { e ->
-                earliest = if (earliest == null) e.timestampMillis else minOf(earliest!!, e.timestampMillis)
-            }
         }
 
         val cutoff = earliest?.let { dateTimeFormatter.format(Instant.ofEpochMilli(it)) } ?: "none"
@@ -234,6 +289,38 @@ class MainActivity : AppCompatActivity() {
         binding.debugText.text = baselineDebug()
     }
 
+    /**
+     * DEBUG/POC: exports all saved nights as a JSON backup and opens the system share sheet (email /
+     * Drive / Keep). Serializes the on-device [NightRecord] list verbatim — the same local-storage
+     * format — so it is a true on-device backup, decoupled from any cloud. Shares a FILE (content
+     * URI), NOT clipboard / EXTRA_TEXT, so it never hits the Binder transaction-size limit — large
+     * exports no longer crash. Pure on-device — no network, no INTERNET permission; the user chooses
+     * where (if anywhere) the file goes.
+     */
+    private fun exportBackupJson() {
+        val records = repository.loadAll().sortedByDescending { it.nightOf }
+        if (records.isEmpty()) {
+            Toast.makeText(this, "No saved nights to export", Toast.LENGTH_SHORT).show()
+            return
+        }
+        try {
+            val text = exportJson.encodeToString(records)
+
+            val file = File(cacheDir, "sleepguard_backup.json").apply { writeText(text) }
+            val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", file)
+            val send = Intent(Intent.ACTION_SEND).apply {
+                type = "application/json"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                putExtra(Intent.EXTRA_SUBJECT, "SleepGuard backup (${records.size} nights)")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            startActivity(Intent.createChooser(send, getString(R.string.button_export_json)))
+            Toast.makeText(this, "Sharing ${records.size} nights as a JSON file", Toast.LENGTH_LONG).show()
+        } catch (t: Throwable) {
+            Toast.makeText(this, "Export failed: ${t.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+
     private fun ensurePermission(): Boolean {
         if (usageAccessManager.hasUsageAccess()) return true
         refreshPermissionState()
@@ -247,13 +334,14 @@ class MainActivity : AppCompatActivity() {
 
     private fun renderFromStorage() {
         val records = repository.loadAll()
-        renderLastNight(records.maxByOrNull { it.nightOf })
+        renderLastNight(records)
         renderEstimatedSleep(records)
         renderNightList(records)
         renderHistory(records)
     }
 
-    /** Top-of-History box: long inactivities (>= 4h) per night = estimated sleep. */
+    /** Top-of-History box: per night, the >=4h quiet window(s); if none, the single longest detected
+     *  window (any length) so a real short sleep shows instead of "none". */
     private fun renderEstimatedSleep(records: List<NightRecord>) {
         if (records.isEmpty()) {
             binding.estimatedSleepText.text = getString(R.string.estimated_sleep_empty)
@@ -261,20 +349,50 @@ class MainActivity : AppCompatActivity() {
         }
         binding.estimatedSleepText.text = records.sortedByDescending { it.nightOf }.joinToString("\n") { r ->
             val blocks = InteractionHistory.longInactivities(r, estimatedSleepMinMillis)
-            if (blocks.isEmpty()) {
-                "${r.nightOf}: none > 4h"
-            } else {
+            if (blocks.isNotEmpty()) {
                 "${r.nightOf}: " + blocks.joinToString("; ") {
                     "${fmt(it.startMillis)}–${fmt(it.endMillis)} (${durHuman(it.durationMillis)})"
                 }
+            } else {
+                // New rule: when no >=4h window exists, show the single longest detected rest window
+                // (even if <4h) — e.g. a real 3h16m sleep — instead of "none". The detail already
+                // shows it; this keeps the History list consistent with it.
+                val longest = InteractionHistory.longInactivities(r, 0L).maxByOrNull { it.durationMillis }
+                if (longest != null)
+                    "${r.nightOf}: ${fmt(longest.startMillis)}–${fmt(longest.endMillis)} (${durHuman(longest.durationMillis)})"
+                else
+                    "${r.nightOf}: none"
             }
         }
     }
 
-    private fun renderLastNight(record: NightRecord?) {
-        binding.lastNightText.text =
-            if (record == null) getString(R.string.last_night_empty) else formatNightSummary(record)
+    /**
+     * Headline "Last Night" = the most recent night whose analysis window had fully elapsed at
+     * capture time (a "complete" night, see [isCompleteNight]). If the single most recent night is
+     * still in progress (a pre-sleep mid-night capture), it is NOT used as the headline; instead we
+     * show the last completed night plus a small note. Presentation-only: the in-progress night is
+     * untouched and still appears in the History list and per-night cards. No analysis/storage change.
+     */
+    private fun renderLastNight(records: List<NightRecord>) {
+        if (records.isEmpty()) {
+            binding.lastNightNote.visibility = View.GONE
+            binding.lastNightText.text = getString(R.string.last_night_empty)
+            return
+        }
+        val mostRecent = records.maxByOrNull { it.nightOf }!!
+        val headline = records.filter { isCompleteNight(it) }.maxByOrNull { it.nightOf } ?: mostRecent
+        val inProgress = headline.nightOf != mostRecent.nightOf
+        binding.lastNightNote.visibility = if (inProgress) View.VISIBLE else View.GONE
+        if (inProgress) binding.lastNightNote.text = getString(R.string.last_night_in_progress)
+        binding.lastNightText.text = formatNightSummary(headline)
     }
+
+    /**
+     * A saved night is "complete" when its analysis window had already ended at capture time
+     * (collectedAt >= windowEnd) — i.e. it was not a premature mid-night capture. Display-only helper
+     * for [renderLastNight]; never affects analysis, storage, or any other view.
+     */
+    private fun isCompleteNight(r: NightRecord): Boolean = r.collectedAtMillis >= r.windowEndMillis
 
     /**
      * Readable "Last Night-style" summary for a single saved night, built only from stored
@@ -445,4 +563,5 @@ class MainActivity : AppCompatActivity() {
         "KEYGUARD_SHOWN" -> "Locked"
         else -> name
     }
+
 }

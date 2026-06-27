@@ -15,7 +15,8 @@ import kotlinx.serialization.Serializable
  *  - Contains ONLY timestamps + event types + derived summary. Never content, app/package/
  *    class names, URLs, input, location, etc.
  *  - [NightRecord.events] (the filtered raw events) is kept for DEBUGGING/TESTING only.
- *    >>> Production / Base44 sync MUST use the summary fields only, NOT the raw events. <<<
+ *    The app is on-device only and never uploads them; the user-initiated backup export shares
+ *    the whole record (events included) as a local file the user chooses where to send.
  */
 
 /**
@@ -53,7 +54,7 @@ data class NightRecord(
     val rawEventCount: Int,
     val filteredEventCount: Int,
     val config: StoredConfig,         // analyzer config snapshot used for this record
-    /** DEBUG/POC ONLY — filtered raw events (timestamp + type, no content). Not for sync. */
+    /** DEBUG/POC ONLY — filtered raw events (timestamp + type, no content). On-device only. */
     val events: List<StoredEvent>,
     // --- 0.3 (additive; nullable WITH defaults so pre-v2 records still deserialize) ---
     val mainRestEpisode: StoredMainEpisode? = null,

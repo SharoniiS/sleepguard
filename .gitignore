@@ -9,3 +9,8 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# Release signing secrets — never commit. Keep only keystore.properties.example in VCS.
+keystore.properties
+*.jks
+*.keystore

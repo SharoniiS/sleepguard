@@ -4,20 +4,49 @@ plugins {
     id 'org.jetbrains.kotlin.plugin.serialization'
 }
 
+// Release signing is read from a keystore.properties at the project root (see
+// keystore.properties.example) so the keystore path + passwords never live in this build script or
+// in version control. If the file is absent, the release build is simply left unsigned — debug
+// builds and `./gradlew test` are unaffected. Create the file before producing a store AAB.
+def keystorePropsFile = rootProject.file('keystore.properties')
+def keystoreProps = new Properties()
+if (keystorePropsFile.exists()) {
+    keystoreProps.load(new FileInputStream(keystorePropsFile))
+}
+
 android {
+    // Internal Kotlin / R package — NOT user-facing and NOT the Play identity. Left as-is to avoid a
+    // wide mechanical rename; can be renamed in a separate isolated pass if desired.
     namespace 'com.sleepguard.poc'
     compileSdk 35
 
     defaultConfig {
-        applicationId "com.sleepguard.poc"
+        // Permanent Google Play identity. Chosen now (pre-publish) because it CANNOT change after the
+        // first release. Distinct from the internal namespace above, which is allowed.
+        applicationId "com.sleepguard.app"
         minSdk 28
         targetSdk 35
         versionCode 1
         versionName "0.1.0"
     }
 
+    signingConfigs {
+        release {
+            if (keystorePropsFile.exists()) {
+                storeFile file(keystoreProps['storeFile'])
+                storePassword keystoreProps['storePassword']
+                keyAlias keystoreProps['keyAlias']
+                keyPassword keystoreProps['keyPassword']
+            }
+        }
+    }
+
     buildTypes {
         release {
+            // Only sign when the keystore.properties exists; otherwise leave unsigned (no broken build).
+            if (keystorePropsFile.exists()) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }

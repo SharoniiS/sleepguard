@@ -11,51 +11,81 @@
         android:orientation="vertical"
         android:padding="16dp">
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/app_name"
-            android:textSize="20sp"
-            android:textStyle="bold"
-            android:paddingBottom="12dp" />
-
-        <TextView
-            android:id="@+id/privacyText"
+        <!-- ============================================================
+             HERO — user-facing landing (Hebrew, RTL). Holds the single
+             primary action: allow system-data (Usage Access) permission.
+             On-device only — no account, no sync, no cloud.
+             ============================================================ -->
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textSize="12sp"
-            android:textStyle="italic"
-            android:paddingBottom="16dp" />
+            android:orientation="vertical"
+            android:layoutDirection="rtl"
+            android:paddingBottom="8dp">
 
-        <TextView
-            android:id="@+id/usageAccessStatus"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/status_missing"
-            android:textStyle="bold"
-            android:paddingBottom="8dp" />
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/hero_title"
+                android:textSize="26sp"
+                android:textStyle="bold"
+                android:gravity="center"
+                android:paddingTop="8dp" />
 
-        <Button
-            android:id="@+id/openSettingsButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/button_open_settings" />
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/hero_tagline"
+                android:textSize="14sp"
+                android:gravity="center"
+                android:paddingTop="4dp"
+                android:paddingBottom="16dp" />
 
-        <Button
-            android:id="@+id/collectLastNightButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:enabled="false"
-            android:text="@string/button_collect_last_night" />
+            <TextView
+                android:id="@+id/privacyText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="12sp"
+                android:textStyle="italic"
+                android:paddingBottom="16dp" />
 
-        <TextView
-            android:id="@+id/collectionStatus"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:paddingTop="8dp"
-            android:paddingBottom="8dp" />
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginBottom="16dp"
+                android:background="?android:attr/listDivider" />
 
+            <!-- Primary action 1: system-data (Usage Access) permission.
+                 openSettingsButton is hidden by code once access is granted. -->
+            <TextView
+                android:id="@+id/usageAccessStatus"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/status_missing"
+                android:textStyle="bold"
+                android:gravity="center"
+                android:paddingBottom="8dp" />
+
+            <Button
+                android:id="@+id/openSettingsButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/button_open_settings" />
+
+            <TextView
+                android:id="@+id/collectionStatus"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:paddingTop="8dp"
+                android:paddingBottom="8dp" />
+        </LinearLayout>
+
+        <!-- ============================================================
+             TECHNICAL / DEBUG zone (English, unchanged behavior).
+             Everything below the hero. Kept fully intact and visible
+             for demo value; only relocated below the landing block.
+             ============================================================ -->
         <View
             android:layout_width="match_parent"
             android:layout_height="1dp"
@@ -67,6 +97,18 @@
             android:layout_height="wrap_content"
             android:text="@string/label_last_night"
             android:textStyle="bold" />
+
+        <!-- Shown (in code) only when the most recent night is still in progress: the headline
+             below then shows the last COMPLETED night instead. Presentation-only. -->
+        <TextView
+            android:id="@+id/lastNightNote"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="12sp"
+            android:textStyle="italic"
+            android:textColor="?android:attr/textColorSecondary"
+            android:paddingTop="4dp"
+            android:visibility="gone" />
 
         <TextView
             android:id="@+id/lastNightText"
@@ -115,14 +157,23 @@
             android:text="@string/button_show_night_details" />
 
         <!-- One expandable card per saved night (populated in code). Hidden by default.
-             Each night opens a Last Night-style summary and, on demand, its own raw events.
-             Replaces the old global "Show All Logs" event dump. -->
+             Each night opens a Last Night-style summary and, on demand, its own raw events. -->
         <LinearLayout
             android:id="@+id/nightListContainer"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
             android:visibility="gone" />
+
+        <!-- Relocated from the hero: redundant for the friendly flow (onResume auto-collects),
+             but kept (with its ID + listener) for manual/demo use. -->
+        <Button
+            android:id="@+id/collectLastNightButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:enabled="false"
+            android:text="@string/button_collect_last_night" />
 
         <Button
             android:id="@+id/debugToggleButton"
@@ -132,9 +183,7 @@
             android:text="@string/button_show_debug" />
 
         <!-- Collapsible debug section: hidden by default, toggled by debugToggleButton.
-             Holds ALL technical content — the detailed per-night log list (controlled by
-             "Show All Logs") plus the existing debug heading / Backfill / Clear / counts.
-             Nothing is removed; it is only collapsed by default. -->
+             Holds history, Backfill / Clear, Export backup, and technical counts. -->
         <LinearLayout
             android:id="@+id/debugSection"
             android:layout_width="match_parent"
@@ -186,6 +235,13 @@
                     android:layout_marginStart="8dp"
                     android:text="@string/button_clear_history" />
             </LinearLayout>
+
+            <Button
+                android:id="@+id/exportJsonButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="@string/button_export_json" />
 
             <TextView
                 android:id="@+id/debugText"

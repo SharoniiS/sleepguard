@@ -12,13 +12,11 @@
         android:name="android.permission.PACKAGE_USAGE_STATS"
         tools:ignore="ProtectedPermissions" />
 
-    <!--
-      No INTERNET permission: this POC is fully offline and never sends data anywhere.
-      Network access will be added only in the next milestone (sync summary to Base44).
-    -->
+    <!-- No INTERNET permission: the app is fully on-device. Nothing is uploaded; the only data
+         that ever leaves is a user-initiated backup file shared via the FileProvider below. -->
 
     <application
-        android:allowBackup="true"
+        android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
@@ -33,6 +31,18 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Lets the "Export backup" action share a temp JSON file from cacheDir via a content URI
+             (no Binder size limit, unlike clipboard / EXTRA_TEXT). Not exported. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
 
 </manifest>

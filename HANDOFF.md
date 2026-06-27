@@ -5,7 +5,93 @@
 > (user/run guide) and the source. If anything here conflicts with the code, the code
 > wins — update this file.
 
-Last updated: 2026-06-15.
+Last updated: 2026-06-27.
+
+---
+
+## 0. Strategic direction — POST-HACKATHON (2026-06-27) ⭐ READ FIRST
+
+> This section is newer than the rest of the file and **supersedes** the older Base44 /
+> "next milestone" notes below (§2 scope, §8 "Base44 sync"). Where it conflicts with
+> §1–§9, this section wins until those are rewritten.
+
+**Context:** the hackathon happened and went well — people liked the app. Based on that, the
+user made a strategic decision about the product's future.
+
+**DECISION — the POC becomes THE product; fully native, on-device only, no backend.**
+
+- **The POC is no longer a "POC."** It is being promoted into the actual shipping app. There
+  is no separate "real app" to build toward — this codebase is it.
+- **Drop Base44 entirely.** Base44 was only the web UX/UI layer (judged generic/weak) sitting
+  on top of logic that already lives natively here. The whole cloud layer is removed:
+  - ❌ Base44 web app
+  - ❌ the Android→Base44 REST bridge / sync / `api_key` / publish-to-go-live
+  - ❌ RLS, `userId`-by-email, ProtectedRoute, and the seed-data demo plumbing
+  - ❌ **Google Login is now unnecessary** — with no accounts and no cloud there is nothing to
+    authenticate against. Open the app → see your data. Zero onboarding friction.
+- **No backend at all.** Cloud was considered (Firebase was the natural fit since Google Login
+  was already in place) and **deliberately rejected**. The product is **on-device only**.
+- **Persistence = Room.** Room (local SQLite) is the chosen DB for the product, replacing the
+  current single-JSON-file persistence (`sleepguard_history.json` via kotlinx.serialization,
+  §5 "Local storage"). Data never leaves the phone.
+- **Trade-off accepted consciously:** on-device only = no cloud backup, no multi-device, no
+  family sharing; a user who switches phones starts empty. This is fine for now and turns
+  **privacy into a product selling point** ("your data never leaves your device"), which aligns
+  with the existing hard privacy constraints in §5. If backup is ever wanted, Room can export to
+  a JSON/file without reintroducing a backend.
+
+**What this leaves to build:** essentially one thing — the **native UI**. The collection
+(`UsageStatsManager`) and the logic (`NightPatternAnalyzer`, backfill) are already done. The
+work is building the user-facing app UI well — the intended shape is **3 tabs: Home / Week /
+History** (Compose, or staying View-based as the current POC is — not yet decided). Note: a
+native UX shell was attempted once before and reverted, so treat the UI as the real cost of
+this plan, not an afterthought.
+
+**Marketing asset to preserve (do NOT delete, do NOT maintain):** the loginless Base44 web
+demo with seed data was the hackathon booth hero. A native-only app cannot reproduce a
+"click a link → see a working dashboard" experience, which is valuable for pitching. **Freeze
+it as-is** and keep it around as a demo/marketing artifact; just don't reopen or develop it.
+
+**Status:** direction set; the Base44 *removal* is DONE (see execution log). Next concrete step is
+the **Room** layer (night entity / DAO / migration off the JSON file) and then the UI.
+
+### Execution log
+
+**2026-06-27 — Base44 fully removed from the app (Track 3).** The app is now on-device only with no
+network upload path. What changed:
+- **Deleted** `Base44Payload.kt`, `Base44PayloadMapper.kt`, `Base44Sync.kt`,
+  `Base44PayloadMapperTest.kt` (the entire Base44 wire/sync layer; the live `API_KEY`/`APP_ID` lived
+  only in the deleted `Base44Sync.kt` — not in any doc — so no secret remains in the tree. ⚠️ still
+  rotate that key in the Base44 dashboard as a precaution).
+- **MainActivity.kt:** removed `syncToBase44()`, the whole Base44-email identity block + companion
+  object (`enteredBase44Email`/`load`/`save`/`syncedNights`/`markNightsSynced`/`clearSyncedNights`,
+  `PREFS_BASE44`/`EXPORT_USER_ID`/…), the email-prefill, and the sync button wiring.
+- **Export repurposed (decision: keep as on-device backup):** the old "Export SleepSummary JSON"
+  (which mapped to the Base44 `SleepSummaryPayload`) is now `exportBackupJson()` — it serializes the
+  on-device `NightRecord` list verbatim (same local-storage format, the future Room shape) to
+  `sleepguard_backup.json` and shares it via the existing `FileProvider`. No cloud, user-initiated.
+- **UI:** removed the hero's "Primary action 2" (Base44 email + sync button); hero now holds only the
+  Usage Access action. Strings `button_sync`/`hero_email_label`/`error_no_base44_email`/
+  `label_base44_email`/`hint_base44_email` deleted; `hero_tagline`, `privacy_message`,
+  `status_success`, `button_export_json` rewritten to on-device wording.
+- **Manifest:** removed the `INTERNET` permission (FileProvider kept for the backup export).
+- **Docs:** README §10 + storage section + this file updated; the standalone `BASE44_*.md` files
+  (`BASE44_INTEGRATION_STATUS/BRIDGE_PLAN/SETUP_GUIDE`) were **deleted** (obsolete after the pivot).
+- **Tests:** 45 `@Test` (NightPatternAnalyzer 36 + NightStorage 5 + InteractionHistory 4) — **all 45
+  passed** in Android Studio (user-confirmed 2026-06-27). No analyzer / storage / threshold /
+  displayed-data behavior changed.
+
+**2026-06-27 — Store-readiness build prep (Track 4, partial).**
+- `app_name` → **"SleepGuard"** (was "SleepGuard Android POC").
+- `applicationId` → **`com.sleepguard.app`** (permanent Play identity; chosen pre-publish). The
+  internal `namespace` stays `com.sleepguard.poc` (not user-facing; rename is a separate optional pass).
+- `allowBackup` → **false** (consistent with on-device-only; no auto Drive backup).
+- Release **signing scaffold**: `app/build.gradle` reads a gitignored `keystore.properties` (template
+  = `keystore.properties.example`); absent → release stays unsigned, debug/tests unaffected.
+  `keystore.properties`/`*.jks`/`*.keystore` added to `.gitignore`.
+- **Still TODO (need user / Android Studio):** create the upload keystore; let Android Studio generate
+  the Gradle wrapper jar; build the **AAB** (`./gradlew bundleRelease` or Build → Generate Signed
+  Bundle); bump `versionCode`/`versionName` per release. `minifyEnabled` left false (optional later).
 
 ---
 

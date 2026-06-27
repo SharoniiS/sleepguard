@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Shareable paths for the FileProvider. Grants read access to the app cacheDir, where the
+     "Export backup" action writes sleepguard_backup.json before sharing it. -->
+<paths>
+    <cache-path name="exports" path="." />
+</paths>

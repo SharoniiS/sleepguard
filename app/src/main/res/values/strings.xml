@@ -1,21 +1,38 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">SleepGuard Android POC</string>
+    <string name="app_name">SleepGuard</string>
 
-    <string name="privacy_message">SleepGuard does not read your messages, notifications, app content, location, microphone, or camera. This POC only reads screen on/off timing events from Android Usage Access in order to estimate nighttime phone interaction. Data is stored only on this device.</string>
+    <!-- ============================================================
+         HERO (user-facing landing) — Hebrew, RTL.
+         These strings are the ones rendered in the top landing block.
+         ============================================================ -->
+    <string name="hero_title">SleepGuard</string>
+    <string name="hero_tagline">מנתחת את פעילות הטלפון שלך בלילה. הנתונים נשארים במכשיר שלך בלבד.</string>
 
-    <string name="status_granted">Usage Access: Granted</string>
-    <string name="status_missing">Usage Access: Missing</string>
-    <string name="button_open_settings">Open Usage Access Settings</string>
+    <string name="privacy_message">SleepGuard לא קוראת הודעות, התראות, תוכן אפליקציות, מיקום, מיקרופון או מצלמה. האפליקציה קוראת רק את תזמוני הדלקת/כיבוי המסך מתוך "גישה לנתוני שימוש" של אנדרואיד, כדי לאמוד את פעילות הטלפון בלילה. הנתונים נשמרים במכשיר בלבד ואינם נשלחים לשום מקום.</string>
 
+    <string name="status_granted">גישה לנתוני המערכת: פעילה</string>
+    <string name="status_missing">כדי להתחיל, אפשר גישה לנתוני המערכת</string>
+    <string name="button_open_settings">אפשר גישה לנתוני המערכת</string>
+
+    <string name="status_success">הנתונים נאספו ונותחו.</string>
+    <string name="error_no_permission">לא ניתן לאסוף נתונים ללא גישה לנתוני המערכת. יש לאפשר אותה תחילה.</string>
+    <string name="error_no_events">לא נמצאו אירועי מסך לתקופה המבוקשת. ייתכן שהמכשיר לא שמר נתוני שימוש לתקופה זו.</string>
+    <string name="error_query_failed">איסוף נתוני השימוש נכשל. בדוק את ההרשאה ונסה שוב.</string>
+    <string name="error_no_settings_screen">לא ניתן לפתוח את מסך "גישה לנתוני שימוש" במכשיר זה. אפשר אותה ידנית תחת: הגדרות &gt; אפליקציות &gt; גישה מיוחדת &gt; גישה לנתוני שימוש.</string>
+
+    <!-- ============================================================
+         TECHNICAL / DEBUG zone (below the hero) — English, unchanged.
+         ============================================================ -->
     <string name="button_collect_last_night">Collect Last Night</string>
 
     <string name="label_last_night">Last Night:</string>
     <string name="last_night_empty">No data yet. Press \"Collect Last Night\".</string>
+    <string name="last_night_in_progress">Tonight isn\'t complete yet — showing your last completed night below.</string>
 
     <string name="label_history">History:</string>
     <string name="history_empty">No saved nights yet.</string>
-    <string name="label_estimated_sleep">Estimated sleep (inactivity over 4h):</string>
+    <string name="label_estimated_sleep">Estimated sleep:</string>
     <string name="estimated_sleep_empty">No nights yet.</string>
     <string name="button_show_night_details">Show night details</string>
     <string name="button_hide_night_details">Hide night details</string>
@@ -28,10 +45,5 @@
     <string name="label_debug">Debug:</string>
     <string name="button_backfill">Backfill Available History</string>
     <string name="button_clear_history">Clear Stored Data</string>
-
-    <string name="status_success">Collection status: Success</string>
-    <string name="error_no_permission">Cannot collect events because Usage Access is missing. Please enable Usage Access first.</string>
-    <string name="error_no_events">No screen events found for the selected window. The device may not have retained usage events for that period.</string>
-    <string name="error_query_failed">Failed to collect usage events. Please check permission and try again.</string>
-    <string name="error_no_settings_screen">Could not open Usage Access settings on this device. Please enable it manually under Settings &gt; Apps &gt; Special app access &gt; Usage access.</string>
+    <string name="button_export_json">Export backup (share file)</string>
 </resources>
