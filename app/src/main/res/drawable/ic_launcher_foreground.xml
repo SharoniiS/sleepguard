@@ -1,11 +1,52 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Simple crescent-moon foreground for the adaptive launcher icon. -->
+<!--
+  SleepGuard launcher foreground: a minimal wise-owl face with a small
+  crescent moon, in soft moonlight tones over the navy adaptive background.
+  Original design (simple vector shapes); kept inside the adaptive-icon
+  safe zone so nothing important is clipped by the launcher mask.
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+
+    <!-- Small crescent moon, top-right (night / calm feeling) -->
+    <path
+        android:fillColor="#E8EAF6"
+        android:pathData="M74,24 A7.5,7.5 0 1,1 74,39 A5.5,5.5 0 1,0 74,24 Z" />
+
+    <!-- Owl ear tufts -->
+    <path
+        android:fillColor="#E8EAF6"
+        android:pathData="M45,41 L39,32 L51,40 Z" />
+    <path
+        android:fillColor="#E8EAF6"
+        android:pathData="M63,41 L69,32 L57,40 Z" />
+
+    <!-- Owl head / body silhouette -->
+    <path
+        android:fillColor="#E8EAF6"
+        android:pathData="M54,40 C40,40 32,50 32,62 C32,76 42,86 54,86 C66,86 76,76 76,62 C76,50 68,40 54,40 Z" />
+
+    <!-- Eyes (deep navy discs against the pale face) -->
+    <path
+        android:fillColor="#1A237E"
+        android:pathData="M36,60 a9,9 0 1,0 18,0 a9,9 0 1,0 -18,0 Z" />
+    <path
+        android:fillColor="#1A237E"
+        android:pathData="M54,60 a9,9 0 1,0 18,0 a9,9 0 1,0 -18,0 Z" />
+
+    <!-- Eye catchlights (calm, alive — not scary) -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M64,30 C50,30 38,42 38,56 C38,70 50,82 64,82 C70,82 76,80 80,76 C72,78 62,76 56,68 C48,58 50,44 60,36 C61,34 63,32 64,30 Z" />
+        android:pathData="M45.3,57 a2.2,2.2 0 1,0 4.4,0 a2.2,2.2 0 1,0 -4.4,0 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M63.3,57 a2.2,2.2 0 1,0 4.4,0 a2.2,2.2 0 1,0 -4.4,0 Z" />
+
+    <!-- Soft beak -->
+    <path
+        android:fillColor="#9FA8DA"
+        android:pathData="M54,69 L50,62 L58,62 Z" />
 </vector>

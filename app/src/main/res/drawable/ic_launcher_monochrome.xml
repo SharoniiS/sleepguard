@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Monochrome owl silhouette for Android 13+ themed (tinted) launcher icons.
+  Single flat shape with the eyes punched out (evenOdd) so the owl reads
+  clearly when the system recolors it. Original design, simple shapes.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M54,43 C52,40 50,33 45,32 C44,36 44,40 42,42 C35,45 32,53 32,62 C32,76 42,86 54,86 C66,86 76,76 76,62 C76,53 73,45 66,42 C64,40 64,36 63,32 C58,33 56,40 54,43 Z M38.5,60 a6.5,6.5 0 1,0 13,0 a6.5,6.5 0 1,0 -13,0 Z M56.5,60 a6.5,6.5 0 1,0 13,0 a6.5,6.5 0 1,0 -13,0 Z" />
+</vector>
