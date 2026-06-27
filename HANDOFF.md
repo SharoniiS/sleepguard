@@ -137,6 +137,20 @@ addition: a per-night **user layer** alongside the analysis layer. Built the dat
 - NOT built/run here — sync & run in Android Studio. DAO/migration need Robolectric/instrumented tests.
 - Next: the UI screens themselves (decision pending: Compose vs the current View-based approach).
 
+**2026-06-27 — Compose UI, Increment 1 (shell).** Decision: **Compose** for the product UI. Added the
+Compose toolchain (BOM 2024.06.00, compiler ext 1.5.14, material3, activity-compose,
+lifecycle-viewmodel-compose; `buildFeatures.compose`). New: `AppActivity` (the **launcher** now),
+`SleepViewModel` (ports the collect logic; exposes hasPermission / nights / latestComplete), and
+`ui/Theme.kt` + `ui/SleepApp.kt` (RTL, dark placeholder palette). Scaffold with the 4-tab bottom nav
++ global state gating (no-permission / no-data). **Real screens:** Home (from `getLatestComplete`),
+History (list of `nights`), מידע נוסף (static info). **Placeholder:** לילה אחרון (awaits the Night
+Report screen — Increment 2). The View POC `MainActivity` is KEPT as a debug screen (lost its launcher
+filter; reachable via `adb am start … MainActivity`) — MVP not destroyed. Collection logic is
+temporarily duplicated (MainActivity + SleepViewModel) until MainActivity is retired. NOT built here —
+sync Gradle (downloads Compose) + run in Android Studio; report any compile errors to iterate.
+- Next (Increment 2): the shared **Night Report** screen (timeline, cards, raw-log, owl insight) for
+  לילה אחרון + History detail; then the **Questionnaire** sub-screen wired to `MorningReportRepository`.
+
 ---
 
 ## 1. Product context (the "why")

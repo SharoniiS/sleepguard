@@ -85,7 +85,7 @@ SleepGuard began as a proof of concept and is being grown into a shippable, **na
 - [x] On-device local storage + history
 - [x] Fully offline (Base44 cloud layer removed; on-device only)
 - [x] Persistence on Room (SQLite), with one-time import from the legacy store
-- [ ] Redesigned native UI (Home / Week / History)
+- [~] Native Compose UI (Home / Last Night / History / More info) — shell + data wired, screens in progress
 - [ ] Google Play release
 
 Developer/architecture notes live in [`HANDOFF.md`](HANDOFF.md).

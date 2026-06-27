@@ -23,14 +23,21 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.SleepGuardPOC">
 
+        <!-- Product launcher: the Compose UI. -->
         <activity
-            android:name=".MainActivity"
+            android:name=".AppActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Legacy View-based POC, kept for debug (no longer the launcher). Reachable via adb:
+             adb shell am start -n com.sleepguard.app/com.sleepguard.poc.MainActivity -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true" />
 
         <!-- Lets the "Export backup" action share a temp JSON file from cacheDir via a content URI
              (no Binder size limit, unlike clipboard / EXTRA_TEXT). Not exported. -->
