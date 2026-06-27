@@ -3,6 +3,7 @@ package com.sleepguard.poc.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -20,12 +21,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenu
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -208,7 +207,6 @@ private fun QuestionnaireCard(report: MorningReportEntity?, onFill: () -> Unit) 
 private val MED_PRESETS = listOf("ריטלין", "בנזודיאזפינים", "נוגדי דיכאון")
 private const val MED_NONE = "ללא תרופות"
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun QuestionnaireScreen(
     nightOf: String,
@@ -236,16 +234,13 @@ internal fun QuestionnaireScreen(
         YesNoRow("האם היו סיוטים?", nightmares) { nightmares = it }
 
         // Medications: choose "none", a preset, a previously-saved one, or add a new one.
-        ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
-            OutlinedTextField(
-                value = meds ?: MED_NONE,
-                onValueChange = {},
-                readOnly = true,
-                label = { Text("תרופות") },
-                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
-                modifier = Modifier.menuAnchor().fillMaxWidth()
-            )
-            ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+        Text("תרופות", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Box {
+            OutlinedButton(onClick = { expanded = true }, modifier = Modifier.fillMaxWidth()) {
+                Text(meds ?: MED_NONE, modifier = Modifier.weight(1f))
+                Text("▾")
+            }
+            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                 DropdownMenuItem(text = { Text(MED_NONE) }, onClick = { meds = null; expanded = false })
                 MED_PRESETS.forEach { p ->
                     DropdownMenuItem(text = { Text(p) }, onClick = { meds = p; expanded = false })
