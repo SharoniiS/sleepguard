@@ -88,7 +88,8 @@ SleepGuard began as a proof of concept and is being grown into a shippable, **na
 - [~] Native Compose UI (Home / Last Night / History / More info) — shell + data wired, screens in progress
 - [ ] Google Play release
 
-Developer/architecture notes live in [`HANDOFF.md`](HANDOFF.md).
+Architecture & decision log: [`ARCHITECTURE.md`](ARCHITECTURE.md). Chronological build log &
+constraints: [`HANDOFF.md`](HANDOFF.md).
 
 ## Disclaimer
 

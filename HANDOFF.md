@@ -181,6 +181,13 @@ sync Gradle (downloads Compose) + run in Android Studio; report any compile erro
   `addMedication`.
 - NOT built here — rebuild + report compile errors.
 
+**2026-06-27 — Build fix + cleanup + docs.** Fixed the build: the medications picker used the
+experimental `ExposedDropdownMenu` (unresolved in Material3 BOM 2024.06) → replaced with a stable
+`OutlinedButton` + `DropdownMenu` (same behavior, no `@OptIn`). Removed unused imports
+(`getValue`/`setValue`/`mutableStateOf` in `SleepApp.kt`). Added **[`ARCHITECTURE.md`](ARCHITECTURE.md)**
+— the consolidated current-state reference (module map, data model, screens/nav, tech stack, and a
+**decision log**). This §0 stays the chronological history; ARCHITECTURE.md is the clean overview.
+
 ---
 
 ## 1. Product context (the "why")
