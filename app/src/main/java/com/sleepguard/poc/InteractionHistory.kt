@@ -1,16 +1,7 @@
 package com.sleepguard.poc
 
-/** Pure helpers for the cross-night "all phone interactions" log. JVM-testable. */
+/** Pure helper for the per-night "estimated sleep" quiet periods. JVM-testable. */
 object InteractionHistory {
-
-    /**
-     * Every stored event across all saved nights, de-duplicated by (timestamp, type) — adjacent
-     * day windows can share a boundary event — and sorted ascending by time.
-     */
-    fun flatten(records: List<NightRecord>): List<StoredEvent> =
-        records.flatMap { it.events }
-            .distinctBy { it.timestampMillis to it.type }
-            .sortedBy { it.timestampMillis }
 
     /**
      * "Estimated sleep" for one night = its long inactivities (>= [minDurationMillis]). These are

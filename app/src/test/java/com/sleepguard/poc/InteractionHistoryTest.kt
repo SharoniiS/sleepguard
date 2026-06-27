@@ -31,28 +31,6 @@ class InteractionHistoryTest {
     )
 
     @Test
-    fun flatten_dedupsBoundaryEventsAndSorts() {
-        val a = rec(
-            "2026-06-13",
-            listOf(StoredEvent(300, "SCREEN_INTERACTIVE"), StoredEvent(100, "SCREEN_INTERACTIVE"))
-        )
-        val b = rec(
-            "2026-06-14",
-            listOf(StoredEvent(300, "SCREEN_INTERACTIVE"), StoredEvent(200, "KEYGUARD_HIDDEN"))
-        )
-
-        val all = InteractionHistory.flatten(listOf(a, b))
-
-        assertEquals(listOf(100L, 200L, 300L), all.map { it.timestampMillis })
-        assertEquals(3, all.size) // the shared 300/SCREEN_INTERACTIVE is de-duplicated
-    }
-
-    @Test
-    fun flatten_emptyIsEmpty() {
-        assertEquals(0, InteractionHistory.flatten(emptyList()).size)
-    }
-
-    @Test
     fun longInactivities_keepsOnlyBlocksOverThreshold() {
         val night = rec("2026-06-14", emptyList()).copy(
             primaryRest = StoredBlock(0L, 5 * H, 5 * H, "PRIMARY_REST", "MAIN_SLEEP_LIKE_BLOCK"),

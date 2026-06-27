@@ -113,6 +113,16 @@ file to **Room** (on-device SQLite). Full design in [`ROOM_MIGRATION_DESIGN.md`]
   replace with Flow/coroutines) and `exportSchema=false` (enable before schema v2).
 - NOT built/run here (no JDK/Gradle/SDK) — sync & run in Android Studio.
 
+**2026-06-27 — Dead-code sweep.** Removed `InteractionHistory.flatten` (+ its 2 tests
+`flatten_dedupsBoundaryEventsAndSorts`, `flatten_emptyIsEmpty`) — dead since the global-log UI was
+dropped; only its own tests referenced it (verified by full-tree grep). Test total **45 → 43**
+(InteractionHistory 4 → 2). No production behavior changed. **Reported but intentionally NOT removed**
+(out of cleanup scope, would change analyzer result-shape + rewrite tests; flag for a deliberate
+decision): `NightPatternResult.longestQuietBlock` (write/test-only, now redundant with
+`primaryRest?.block`), and the internal clock-based label layer (`QuietBlockLabel`/`NightPattern` —
+still feeds awakening detection + the displayed confidence; this is the SCHEDULE_AGNOSTIC Phase-3
+decision, NOT cleanup).
+
 ---
 
 ## 1. Product context (the "why")
@@ -229,8 +239,9 @@ The technical logs were reorganized away from one giant global event dump:
   - **Raw events per night** behind **"Show raw events for this night"**, hidden by default and
     built **lazily** only when opened (`formatRawEvents`), from that night's stored
     `NightRecord.events` only — never merged across nights.
-- **`InteractionHistory.flatten` is intentionally kept** (with its unit test) even though the UI no
-  longer calls it — a possible future cleanup if it stays unused, not removed now.
+- **`InteractionHistory.flatten` was REMOVED** (2026-06-27) along with its two unit tests — it was
+  dead after the global-log UI was dropped (only its own tests referenced it). `longInactivities` (the
+  live "estimated sleep" helper) and its tests stay.
 - **No analyzer / storage-schema / UsageStats change** in any of this — presentation only.
 
 ---
