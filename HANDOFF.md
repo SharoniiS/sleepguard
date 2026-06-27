@@ -93,6 +93,26 @@ network upload path. What changed:
   the Gradle wrapper jar; build the **AAB** (`./gradlew bundleRelease` or Build → Generate Signed
   Bundle); bump `versionCode`/`versionName` per release. `minifyEnabled` left false (optional later).
 
+**2026-06-27 — Room persistence (Track 5, Phase 1: drop-in).** Storage moved from the single JSON
+file to **Room** (on-device SQLite). Full design in [`ROOM_MIGRATION_DESIGN.md`](ROOM_MIGRATION_DESIGN.md).
+- Approach: **JSON blob + indexed columns** — each night is one row keyed by `nightOf`; the full
+  `NightRecord` is serialized into a `recordJson` column (same shape as the legacy file) and the
+  queryable scalars (window/collected millis, restPattern, confidence) are denormalized columns. No
+  TypeConverters. `NightRecord` is **untouched** (still the domain/export model).
+- New files: `NightEntity` (+ `NightSummary` projection), `NightDao`, `AppDatabase` (v1), `NightEntityMapper`.
+- `NightRepository` rewritten over the DAO; **public API unchanged** (`loadAll`/`upsert`/`clearAll`),
+  so `MainActivity` is untouched. The old pure `upsertInto` list-merge is gone (Room PK REPLACE does it).
+- **One-time import:** on first run `sleepguard_history.json` → Room, then renamed `.imported` (kept as
+  backup; failures leave it in place). Preserves nights already on a device.
+- Deps: `androidx.room:room-runtime/room-ktx/room-compiler:2.6.1` via the **KSP** plugin
+  (`com.google.devtools.ksp:1.9.24-1.0.20`, added to root + app gradle).
+- Tests: `NightStorageTest` keeps the 3 NightRecord/mapper tests and **replaces** the 2 list-upsert
+  tests with `NightEntityMapper` round-trip + column tests → still **45 `@Test`** total. DAO behavior
+  (upsert/replace, queries) needs Robolectric/instrumented tests (follow-up).
+- Temporary shims to revisit in the UI track: `allowMainThreadQueries()` (matches old sync I/O;
+  replace with Flow/coroutines) and `exportSchema=false` (enable before schema v2).
+- NOT built/run here (no JDK/Gradle/SDK) — sync & run in Android Studio.
+
 ---
 
 ## 1. Product context (the "why")

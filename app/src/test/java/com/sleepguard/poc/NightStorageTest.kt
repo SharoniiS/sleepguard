@@ -8,9 +8,10 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * JVM unit tests for the local-storage layer: the pure mapper, JSON (de)serialization, and
- * the pure upsert merge. File I/O in NightRepository is a thin Android wrapper and is not
- * unit-tested here.
+ * JVM unit tests for the local-storage layer: the pure NightRecord mapper, JSON (de)serialization,
+ * and the pure NightRecord <-> NightEntity mapping. The Room DAO (upsert/replace, queries) runs on
+ * SQLite and is covered by instrumented/Robolectric tests, not here; the file I/O and the one-time
+ * legacy import in NightRepository are thin Android wrappers and are not unit-tested here.
  */
 class NightStorageTest {
 
@@ -71,26 +72,23 @@ class NightStorageTest {
     }
 
     @Test
-    fun upsert_replacesByRecordId() {
-        val a = sampleRecord("2026-06-12")
-        val b = sampleRecord("2026-06-14", collectedAt = 1L)
-        val bUpdated = sampleRecord("2026-06-14", collectedAt = 2L) // same id, newer content
-
-        var list = NightRepository.upsertInto(emptyList(), a)
-        list = NightRepository.upsertInto(list, b)
-        assertEquals(2, list.size)
-
-        list = NightRepository.upsertInto(list, bUpdated)
-        assertEquals(2, list.size) // replaced, not duplicated
-        assertEquals(2L, list.first { it.recordId == "2026-06-14" }.collectedAtMillis)
+    fun entityMapper_roundTrip() {
+        val record = sampleRecord("2026-06-14", collectedAt = 5L)
+        val restored = NightEntityMapper.toRecord(NightEntityMapper.toEntity(record))
+        assertEquals(record, restored) // record -> entity -> record is lossless
     }
 
     @Test
-    fun upsert_sortsByNightDate() {
-        var list = NightRepository.upsertInto(emptyList(), sampleRecord("2026-06-14"))
-        list = NightRepository.upsertInto(list, sampleRecord("2026-06-10"))
-        list = NightRepository.upsertInto(list, sampleRecord("2026-06-12"))
+    fun entityMapper_exposesQueryableColumns() {
+        val record = sampleRecord("2026-06-14", collectedAt = 5L)
+        val entity = NightEntityMapper.toEntity(record)
 
-        assertEquals(listOf("2026-06-10", "2026-06-12", "2026-06-14"), list.map { it.nightOf })
+        // Summary columns are denormalized for SQL queries; the blob carries the full record.
+        assertEquals("2026-06-14", entity.nightOf)
+        assertEquals(record.restPattern, entity.restPattern)
+        assertEquals(record.confidence, entity.confidence)
+        assertEquals(record.windowStartMillis, entity.windowStartMillis)
+        assertEquals(record.windowEndMillis, entity.windowEndMillis)
+        assertEquals(record.collectedAtMillis, entity.collectedAtMillis)
     }
 }

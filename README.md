@@ -60,7 +60,7 @@ The data-collection engine and analyzer are validated with a suite of unit tests
 - **Kotlin**, single-Activity Android app
 - `UsageStatsManager` (Usage Access) for passive screen-event timing
 - Pure-JVM analysis core (fully unit-tested, no Android dependencies)
-- Local persistence on-device (JSON today; migrating to **Room**)
+- Local persistence on-device with **Room** (SQLite)
 - View / XML UI with ViewBinding (Jetpack Compose UI in progress)
 - `compileSdk 35` · `targetSdk 35` · `minSdk 28` · JDK 17
 
@@ -84,7 +84,7 @@ SleepGuard began as a proof of concept and is being grown into a shippable, **na
 - [x] Honest night-pattern analysis (schedule-agnostic) + unit tests
 - [x] On-device local storage + history
 - [x] Fully offline (Base44 cloud layer removed; on-device only)
-- [ ] Migrate persistence to Room
+- [x] Persistence on Room (SQLite), with one-time import from the legacy store
 - [ ] Redesigned native UI (Home / Week / History)
 - [ ] Google Play release
 
