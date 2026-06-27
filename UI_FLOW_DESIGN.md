@@ -124,9 +124,15 @@ joined with the night's `MorningReport`.
 | Card: חזרות לפעילות | `awakenings.size` (+ times) |
 | Card: סך זמן חוסר הפעילות | quiet duration |
 | Card: שימוש שעתיים לפני | `preSleepPhoneTimeMillis` |
-| יומן פעילות גולמי (collapsible) | `events` (lazy) |
+| **יומן פעילות גולמי** (collapsible — transparency feature) | `events` (lazy); `ScreenEventType` → Hebrew labels |
 | תובנת הינשוף | derived template (see wording note) |
 | שאלון יומי card: status + "מילוי שאלון" | `MorningReport` presence → Questionnaire |
+
+**Raw activity log = a transparency feature, not just debug.** The collapsible "יומן פעילות גולמי"
+shows the FULL, unfiltered event stream — every **מסך נדלק** (on) / **מסך נכבה** (off) / **פתיחה**
+(unlock) / **נעילה** (lock) with its timestamp. It is deliberately exhaustive: complete transparency
+gives the user a sense of control and trust, and lets them interpret the night themselves. Source:
+`events` (the four `ScreenEventType`s → Hebrew labels), lazy-loaded on expand.
 
 ## Sub-screen B — שאלון יומי (Questionnaire)
 
@@ -148,11 +154,12 @@ Per-night self-report, opened from the report's questionnaire card.
    handled only in the no-permission state; "מידע נוסף" stays purely informational; Export backup /
    Clear data remain debug/POC actions, out of the product UI for now.
 
-## Data-layer work this implies
+## Data layer (status)
 
-- New `MorningReport` entity + DAO (`upsert`, `getByNight`, `getAll` for History "filled" badges) +
-  Room schema bump (turn on `exportSchema` + migration before v2). **v1 = questionnaire fields only**
-  (nightmares / medications / cannabis / alcohol / note / updatedAt); the `correctedQuiet*` fields are
-  deferred with the "ערוך זמנים" feature.
-- `getLatestComplete()` query (or pick in code) for Home / Last Night.
-- The rest (`getAll`, `getByNight`, `getAllSummaries`, `clearAll`) already exists.
+- ✅ **Built (2026-06-27):** `MorningReportEntity` + `MorningReportDao` (`upsert`, `getByNight`,
+  `getFilledNights`, `clearAll`) + `MorningReportRepository`. Room bumped to **v2** with an explicit
+  `MIGRATION_1_2` that creates `morning_reports`. v1 fields = nightmares / medications / cannabis /
+  alcohol / note / updatedAt; the `correctedQuiet*` fields are deferred with the "ערוך זמנים" feature.
+- ✅ **Built:** `NightDao.getLatestComplete()` + `NightRepository.getLatestComplete()` for Home / Last Night.
+- Already existed: `getAll`, `getByNight`, `getAllSummaries`, `clearAll`.
+- Follow-up: DAO + migration tests need Robolectric / instrumented (not in the pure JVM suite).

@@ -123,6 +123,20 @@ decision): `NightPatternResult.longestQuietBlock` (write/test-only, now redundan
 still feeds awakening detection + the displayed confidence; this is the SCHEDULE_AGNOSTIC Phase-3
 decision, NOT cleanup).
 
+**2026-06-27 — UI design + data layer for the product UI.** Full screen logic/flow in
+[`UI_FLOW_DESIGN.md`](UI_FLOW_DESIGN.md): 4 tabs (Home / Last Night / History / **מידע נוסף**, renamed
+from Settings — info-only) + shared **Night Report** + **Questionnaire** sub-screens. Key model
+addition: a per-night **user layer** alongside the analysis layer. Built the data layer for it:
+- `MorningReportEntity` + `MorningReportDao` + `MorningReportRepository` (self-report keyed by
+  `nightOf`: nightmares / medications / cannabis / alcohol / note / updatedAt). Room → **v2** with
+  explicit `MIGRATION_1_2` (creates `morning_reports`; non-destructive, preserves existing nights).
+- `NightDao.getLatestComplete()` + `NightRepository.getLatestComplete()` for Home / Last Night.
+- Locked decisions: insight wording = factual; "ערוך זמנים" deferred (timeline read-only in v1,
+  `correctedQuiet*` fields not built); "מידע נוסף" info-only (permission contextual; export/clear stay
+  debug). Raw activity log kept as a deliberate transparency feature.
+- NOT built/run here — sync & run in Android Studio. DAO/migration need Robolectric/instrumented tests.
+- Next: the UI screens themselves (decision pending: Compose vs the current View-based approach).
+
 ---
 
 ## 1. Product context (the "why")
