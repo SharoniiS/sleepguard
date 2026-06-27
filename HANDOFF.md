@@ -151,6 +151,22 @@ sync Gradle (downloads Compose) + run in Android Studio; report any compile erro
 - Next (Increment 2): the shared **Night Report** screen (timeline, cards, raw-log, owl insight) for
   לילה אחרון + History detail; then the **Questionnaire** sub-screen wired to `MorningReportRepository`.
 
+**2026-06-27 — Compose UI, Increment 2 (Night Report + Questionnaire).** New `ui/NightReport.kt`:
+- `NightReport` (shared screen): chips, factual summary, read-only **timeline bar**, stat cards
+  (first/last activity, interruptions, total quiet, pre-sleep use), collapsible **raw activity log**
+  (lazy `items`, Hebrew event labels — the transparency feature), **owl insight** (factual template),
+  and a **questionnaire card**.
+- `NightReportRoute` owns the report↔questionnaire sub-nav; used by the **לילה אחרון** tab
+  (`onBack = null`) and from a **History** row tap (`onBack` pops to the list). History rows are now
+  clickable; `SleepApp` navigation reworked (a `reportNight` state for full-screen history detail).
+- `QuestionnaireScreen`: nightmares / meds / cannabis / alcohol / note → `MorningReportEntity` saved
+  via `vm.saveReport`; pre-fills from the existing report.
+- Insight wording is **factual** (per the locked decision); `summaryHe`/`insightHe` templates.
+- Shared helpers/composables in `SleepApp.kt` made `internal` for reuse (`fmt`, `dur`, `quiet`,
+  `patternHe`, `availabilityHe`, `Ltr`, `Chip`, `StatCard`).
+- NOT built here — rebuild in Android Studio + report compile errors to iterate. Next: visual design
+  pass (still placeholder theme), and History "filled-questionnaire" badges if wanted.
+
 ---
 
 ## 1. Product context (the "why")

@@ -26,6 +26,7 @@ class SleepViewModel(app: Application) : AndroidViewModel(app) {
     private val config = AnalysisConfig()
     private val analyzer = NightPatternAnalyzer(config)
     private val repo = NightRepository(app)
+    private val morningRepo = MorningReportRepository(app)
     private val zone: ZoneId = ZoneId.systemDefault()
     private val backfillLookbackDays = 9
 
@@ -46,6 +47,12 @@ class SleepViewModel(app: Application) : AndroidViewModel(app) {
 
     fun openUsageAccessSettings(activity: Activity): Boolean =
         usageAccess.openUsageAccessSettings(activity)
+
+    /** The morning self-report for a night, or null if not filled. */
+    fun getReport(nightOf: String): MorningReportEntity? = morningRepo.get(nightOf)
+
+    /** Save (insert/replace) a night's morning self-report. */
+    fun saveReport(report: MorningReportEntity) = morningRepo.save(report)
 
     // ---- collection (ported from MainActivity; see class note) ----
 

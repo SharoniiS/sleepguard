@@ -1,6 +1,8 @@
 package com.sleepguard.poc.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -20,17 +22,17 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.ui.platform.LocalLayoutDirection
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.sleepguard.poc.NightRecord
@@ -49,6 +51,15 @@ private enum class Tab(val label: String, val emoji: String) {
 @Composable
 fun SleepApp(vm: SleepViewModel, onOpenSettings: () -> Unit) {
     var tab by remember { mutableStateOf(Tab.HOME) }
+    // A history night opened full-screen as its Night Report (null = on the tabs).
+    var reportNight by remember { mutableStateOf<NightRecord?>(null) }
+
+    val opened = reportNight
+    if (opened != null) {
+        NightReportRoute(opened, vm, onBack = { reportNight = null })
+        return
+    }
+
     Scaffold(
         bottomBar = {
             NavigationBar {
@@ -62,20 +73,28 @@ fun SleepApp(vm: SleepViewModel, onOpenSettings: () -> Unit) {
                 }
             }
         }
-    ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
+    ) { inset ->
+        Box(Modifier.fillMaxSize().padding(inset)) {
             when {
-                !vm.hasPermission -> NeedPermission(onOpenSettings)
-                vm.nights.isEmpty() -> CenteredMessage("אין עדיין נתונים. פִּתחי את האפליקציה בבוקר אחרי לילה.")
-                else -> when (tab) {
-                    Tab.HOME -> HomeScreen(vm.latestComplete)
-                    Tab.LAST -> CenteredMessage("דו\"ח הלילה האחרון — בקרוב.")
-                    Tab.HISTORY -> HistoryScreen(vm.nights)
-                    Tab.MORE -> MoreInfoScreen()
+                !vm.hasPermission -> Padded { NeedPermission(onOpenSettings) }
+                vm.nights.isEmpty() ->
+                    Padded { CenteredMessage("אין עדיין נתונים. פִּתחי את האפליקציה בבוקר אחרי לילה.") }
+                tab == Tab.HOME -> Padded { HomeScreen(vm.latestComplete) }
+                tab == Tab.HISTORY -> Padded { HistoryScreen(vm.nights) { reportNight = it } }
+                tab == Tab.MORE -> Padded { MoreInfoScreen() }
+                tab == Tab.LAST -> {
+                    val latest = vm.latestComplete
+                    if (latest != null) NightReportRoute(latest, vm, onBack = null)
+                    else Padded { CenteredMessage("אין עדיין לילה שלם להצגה.") }
                 }
             }
         }
     }
+}
+
+@Composable
+private fun Padded(content: @Composable () -> Unit) {
+    Box(Modifier.fillMaxSize().padding(16.dp)) { content() }
 }
 
 // ---------------------------------------------------------------- state screens
@@ -142,11 +161,11 @@ private fun HomeScreen(latest: NightRecord?) {
 // ---------------------------------------------------------------- History
 
 @Composable
-private fun HistoryScreen(nights: List<NightRecord>) {
+private fun HistoryScreen(nights: List<NightRecord>, onOpen: (NightRecord) -> Unit) {
     LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         items(nights) { n ->
             val q = quiet(n)
-            Card(Modifier.fillMaxWidth()) {
+            Card(Modifier.fillMaxWidth().clickable { onOpen(n) }) {
                 Row(
                     Modifier.fillMaxWidth().padding(14.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -188,16 +207,16 @@ private fun MoreInfoScreen() {
     }
 }
 
-// ---------------------------------------------------------------- small pieces
+// ---------------------------------------------------------------- shared pieces (internal: used by NightReport.kt)
 
 /** Forces left-to-right layout for its content (e.g. a HH:mm–HH:mm range inside the RTL UI). */
 @Composable
-private fun Ltr(content: @Composable () -> Unit) {
+internal fun Ltr(content: @Composable () -> Unit) {
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr, content = content)
 }
 
 @Composable
-private fun Chip(text: String) {
+internal fun Chip(text: String) {
     Surface(
         color = MaterialTheme.colorScheme.surfaceVariant,
         shape = RoundedCornerShape(50)
@@ -212,7 +231,7 @@ private fun Chip(text: String) {
 }
 
 @Composable
-private fun StatCard(modifier: Modifier, label: String, value: String) {
+internal fun StatCard(modifier: Modifier, label: String, value: String) {
     Card(modifier) {
         Column(Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Text(value, fontSize = 20.sp, fontWeight = FontWeight.Bold)
@@ -234,32 +253,32 @@ private fun InfoCard(title: String, body: String) {
     }
 }
 
-// ---------------------------------------------------------------- helpers
+// ---------------------------------------------------------------- helpers (internal: shared with NightReport.kt)
 
 private val zone: ZoneId = ZoneId.systemDefault()
 private val hm = DateTimeFormatter.ofPattern("HH:mm").withZone(zone)
 
-private fun fmt(ms: Long?): String = if (ms == null) "—" else hm.format(Instant.ofEpochMilli(ms))
+internal fun fmt(ms: Long?): String = if (ms == null) "—" else hm.format(Instant.ofEpochMilli(ms))
 
-private fun dur(ms: Long): String {
+internal fun dur(ms: Long): String {
     val totalMin = ms / 60000
     val h = totalMin / 60
     val m = totalMin % 60
     return if (h > 0) "${h}h ${m}m" else "${m}m"
 }
 
-private fun quiet(r: NightRecord): Triple<Long, Long, Long>? =
+internal fun quiet(r: NightRecord): Triple<Long, Long, Long>? =
     r.mainRestEpisode?.let { Triple(it.startMillis, it.endMillis, it.durationMillis) }
         ?: r.primaryRest?.let { Triple(it.startMillis, it.endMillis, it.durationMillis) }
 
-private fun patternHe(p: String): String = when (p) {
+internal fun patternHe(p: String): String = when (p) {
     "CONSOLIDATED" -> "רצוף"
     "FRAGMENTED" -> "מקוטע"
     "MINIMAL_REST" -> "פעיל ברובו"
     else -> p
 }
 
-private fun availabilityHe(c: String): String = when (c) {
+internal fun availabilityHe(c: String): String = when (c) {
     "HIGH" -> "נתונים מלאים"
     "MEDIUM" -> "נתונים חלקיים"
     "LOW" -> "נתונים מועטים"
