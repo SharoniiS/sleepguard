@@ -102,11 +102,9 @@ profile to configure.
 - **About:** "SleepGuard · גרסה X", one-line description.
 - **Data source:** "Android Native Component" — reads screen on/off timings only.
 - **Privacy:** the on-device bullets (no identifying data, stays on device, screen content not read).
-- **Open decision (native gap):** Base44's Settings was info-only because the web app *couldn't* do
-  native things. The native app still needs a home for: **Usage Access status/grant**, **Export
-  backup**, **Clear data**. Recommendation: Usage Access is handled **contextually** in the
-  no-permission state (not a setting); Export/Clear are currently **debug/POC** actions and can stay
-  out of the product UI for now (add a minimal "ניהול נתונים" section here later if wanted).
+- **Native actions (decided):** "מידע נוסף" stays purely informational. Usage Access is handled
+  **contextually** in the no-permission state (not a setting). Export backup / Clear data stay
+  **debug/POC** actions, out of the product UI for now.
 
 ---
 
@@ -120,7 +118,7 @@ joined with the night's `MorningReport`.
 | Hero: owl + "דו"ח פעילות יומי" + date + back | `nightOf` |
 | Chips: data availability · pattern | `confidence`, `restPattern` |
 | Summary sentence | templated from `restPattern` + quiet duration |
-| **Timeline**: axis `windowStart → collectedAt`; quiet block(s); pre-quiet activity (estimated); "ערוך זמנים" | `mainRestEpisode`/`primaryRest`, events; footnote "הערכה גסה" |
+| **Timeline** (read-only in v1): axis `windowStart → collectedAt`; quiet block(s); pre-quiet activity (estimated) | `mainRestEpisode`/`primaryRest`, events; footnote "הערכה גסה". ("ערוך זמנים" deferred — see decisions.) |
 | Card: פעילות אחרונה | quiet start = `phoneDown` |
 | Card: פעילות ראשונה | quiet end = `firstUseAfter…` |
 | Card: חזרות לפעילות | `awakenings.size` (+ times) |
@@ -140,18 +138,21 @@ Per-night self-report, opened from the report's questionnaire card.
 
 ---
 
-## Open decisions (for the build phase)
+## Resolved decisions (locked 2026-06-27)
 
-1. **תובנת הינשוף wording.** "לילה רגוע במיוחד" is a soft judgment; per the UX-wording rules prefer a
-   factual template (e.g. "לא זוהו הפרעות בשעות חוסר הפעילות"). A wording set will be proposed.
-2. **"ערוך זמנים" scope.** It is a full editor (user override of the detected quiet window, stored in
-   `MorningReport`). Ship in v1, or defer to a later phase?
-3. **Native actions home.** Confirm the recommendation above (permission contextual; export/clear stay
-   debug-only for now).
+1. **תובנת הינשוף wording = factual template.** No soft judgments ("לילה רגוע במיוחד" → e.g. "לא זוהו
+   הפרעות בשעות חוסר הפעילות"). A wording set will be proposed and reviewed against the UX-wording rules.
+2. **"ערוך זמנים" = deferred to a later phase.** v1 timeline is **read-only**. The `MorningReport`
+   `correctedQuiet*` fields are reserved for that later phase and are NOT built in v1.
+3. **Native actions home = permission contextual; export/clear stay debug-only.** Usage Access is
+   handled only in the no-permission state; "מידע נוסף" stays purely informational; Export backup /
+   Clear data remain debug/POC actions, out of the product UI for now.
 
 ## Data-layer work this implies
 
 - New `MorningReport` entity + DAO (`upsert`, `getByNight`, `getAll` for History "filled" badges) +
-  Room schema bump (turn on `exportSchema` + migration before v2).
+  Room schema bump (turn on `exportSchema` + migration before v2). **v1 = questionnaire fields only**
+  (nightmares / medications / cannabis / alcohol / note / updatedAt); the `correctedQuiet*` fields are
+  deferred with the "ערוך זמנים" feature.
 - `getLatestComplete()` query (or pick in code) for Home / Last Night.
 - The rest (`getAll`, `getByNight`, `getAllSummaries`, `clearAll`) already exists.
