@@ -21,14 +21,15 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  * move reads to Flow / coroutines and remove it.
  */
 @Database(
-    entities = [NightEntity::class, MorningReportEntity::class],
-    version = 2,
+    entities = [NightEntity::class, MorningReportEntity::class, MedicationEntity::class],
+    version = 3,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
 
     abstract fun nightDao(): NightDao
     abstract fun morningReportDao(): MorningReportDao
+    abstract fun medicationDao(): MedicationDao
 
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null
@@ -50,12 +51,22 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** v2 → v3: add the `medications` table (the user's reusable medication names). */
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `medications` (" +
+                        "`name` TEXT NOT NULL, PRIMARY KEY(`name`))"
+                )
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext, AppDatabase::class.java, "sleepguard.db"
                 ).allowMainThreadQueries()
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .build()
                     .also { INSTANCE = it }
             }

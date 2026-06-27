@@ -167,6 +167,20 @@ sync Gradle (downloads Compose) + run in Android Studio; report any compile erro
 - NOT built here — rebuild in Android Studio + report compile errors to iterate. Next: visual design
   pass (still placeholder theme), and History "filled-questionnaire" badges if wanted.
 
+**2026-06-27 — Compose Increment 3 (questionnaire polish + in-app back nav).**
+- **In-app back stack:** `SleepApp` now holds a `Dest` stack (`TabDest`/`Report`/`Quest`) with a
+  `BackHandler`; the device Back button moves between screens (questionnaire→report→list→home) and
+  only exits at the Home root. Bottom nav always visible; the active tab is the last `TabDest` in the
+  stack. Removed `NightReportRoute` (nav is now top-level); `NightReport`/`QuestionnaireScreen` made
+  `internal`.
+- **Questionnaire:** removed the "אפשר למלא גם אחר כך" button (saving + Back cover it).
+- **Medications dropdown:** `ExposedDropdownMenuBox` with "ללא תרופות", presets
+  (ריטלין/בנזודיאזפינים/נוגדי דיכאון), the user's **saved** meds (under a "תרופות שמורות" header), and
+  "הוסף תרופה…" → dialog that saves a new name. New Room table **`medications`** (Room → **v3**,
+  `MIGRATION_2_3`) + `MedicationEntity`/`MedicationDao`; `SleepViewModel.savedMedications` +
+  `addMedication`.
+- NOT built here — rebuild + report compile errors.
+
 ---
 
 ## 1. Product context (the "why")

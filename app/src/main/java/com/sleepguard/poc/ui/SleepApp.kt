@@ -1,5 +1,6 @@
 package com.sleepguard.poc.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -28,6 +29,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -58,23 +60,26 @@ private enum class Tab(val label: String, val emoji: String) {
 
 @Composable
 fun SleepApp(vm: SleepViewModel, onOpenSettings: () -> Unit) {
-    var tab by remember { mutableStateOf(Tab.HOME) }
-    // A history night opened full-screen as its Night Report (null = on the tabs).
-    var reportNight by remember { mutableStateOf<NightRecord?>(null) }
+    // In-app navigation stack so the device Back button moves between screens (and never exits from
+    // an inner screen). Root = Home.
+    val stack = remember { mutableStateListOf<Dest>(Dest.TabDest(Tab.HOME)) }
+    BackHandler(enabled = stack.size > 1) { stack.removeAt(stack.lastIndex) }
 
-    val opened = reportNight
-    if (opened != null) {
-        NightReportRoute(opened, vm, onBack = { reportNight = null })
-        return
+    val current = stack.last()
+    val activeTab = (stack.lastOrNull { it is Dest.TabDest } as? Dest.TabDest)?.tab ?: Tab.HOME
+
+    fun goTab(t: Tab) {
+        if (current !is Dest.TabDest || current.tab != t) stack.add(Dest.TabDest(t))
     }
+    fun back() { if (stack.size > 1) stack.removeAt(stack.lastIndex) }
 
     Scaffold(
         bottomBar = {
             NavigationBar {
                 Tab.entries.forEach { t ->
                     NavigationBarItem(
-                        selected = t == tab,
-                        onClick = { tab = t },
+                        selected = t == activeTab,
+                        onClick = { goTab(t) },
                         icon = { Text(t.emoji, fontSize = 18.sp) },
                         label = { Text(t.label) }
                     )
@@ -87,17 +92,36 @@ fun SleepApp(vm: SleepViewModel, onOpenSettings: () -> Unit) {
                 !vm.hasPermission -> Padded { NeedPermission(onOpenSettings) }
                 vm.nights.isEmpty() ->
                     Padded { CenteredMessage("אין עדיין נתונים. פִּתחי את האפליקציה בבוקר אחרי לילה.") }
-                tab == Tab.HOME -> Padded { HomeScreen(vm.latestComplete) }
-                tab == Tab.HISTORY -> Padded { HistoryScreen(vm.nights) { reportNight = it } }
-                tab == Tab.MORE -> Padded { MoreInfoScreen() }
-                tab == Tab.LAST -> {
-                    val latest = vm.latestComplete
-                    if (latest != null) NightReportRoute(latest, vm, onBack = null)
-                    else Padded { CenteredMessage("אין עדיין לילה שלם להצגה.") }
+                else -> when (val d = current) {
+                    is Dest.TabDest -> when (d.tab) {
+                        Tab.HOME -> Padded { HomeScreen(vm.latestComplete) }
+                        Tab.HISTORY -> Padded { HistoryScreen(vm.nights) { stack.add(Dest.Report(it)) } }
+                        Tab.MORE -> Padded { MoreInfoScreen() }
+                        Tab.LAST -> {
+                            val latest = vm.latestComplete
+                            if (latest != null)
+                                NightReport(latest, vm.getReport(latest.nightOf), onBack = null) {
+                                    stack.add(Dest.Quest(latest))
+                                }
+                            else Padded { CenteredMessage("אין עדיין לילה שלם להצגה.") }
+                        }
+                    }
+                    is Dest.Report ->
+                        NightReport(d.night, vm.getReport(d.night.nightOf), onBack = { back() }) {
+                            stack.add(Dest.Quest(d.night))
+                        }
+                    is Dest.Quest ->
+                        QuestionnaireScreen(d.night.nightOf, vm.getReport(d.night.nightOf), vm) { back() }
                 }
             }
         }
     }
+}
+
+private sealed interface Dest {
+    data class TabDest(val tab: Tab) : Dest
+    data class Report(val night: NightRecord) : Dest
+    data class Quest(val night: NightRecord) : Dest
 }
 
 @Composable

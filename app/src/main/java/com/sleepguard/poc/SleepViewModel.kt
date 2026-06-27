@@ -27,6 +27,7 @@ class SleepViewModel(app: Application) : AndroidViewModel(app) {
     private val analyzer = NightPatternAnalyzer(config)
     private val repo = NightRepository(app)
     private val morningRepo = MorningReportRepository(app)
+    private val medicationDao = AppDatabase.getInstance(app).medicationDao()
     private val zone: ZoneId = ZoneId.systemDefault()
     private val backfillLookbackDays = 9
 
@@ -36,6 +37,8 @@ class SleepViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var latestComplete by mutableStateOf<NightRecord?>(null)
         private set
+    var savedMedications by mutableStateOf<List<String>>(emptyList())
+        private set
 
     /** Re-check permission, auto-collect recent nights, and reload. Call on resume. */
     fun refresh() {
@@ -43,6 +46,15 @@ class SleepViewModel(app: Application) : AndroidViewModel(app) {
         if (hasPermission) runCatching { collectBackfill() }
         nights = repo.loadAll().sortedByDescending { it.nightOf }
         latestComplete = repo.getLatestComplete()
+        savedMedications = medicationDao.getAll()
+    }
+
+    /** Add (and remember) a medication name so it can be reused from the questionnaire dropdown. */
+    fun addMedication(name: String) {
+        val n = name.trim()
+        if (n.isEmpty()) return
+        medicationDao.insert(MedicationEntity(n))
+        savedMedications = medicationDao.getAll()
     }
 
     fun openUsageAccessSettings(activity: Activity): Boolean =

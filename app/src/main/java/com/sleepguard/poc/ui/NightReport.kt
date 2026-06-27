@@ -17,8 +17,14 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenu
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -40,29 +46,8 @@ import com.sleepguard.poc.NightRecord
 import com.sleepguard.poc.SleepViewModel
 import com.sleepguard.poc.StoredEvent
 
-/**
- * Owns the Night Report and its Questionnaire sub-screen. Used both by the "לילה אחרון" tab
- * (onBack = null) and from a History row (onBack pops back to the list).
- */
 @Composable
-fun NightReportRoute(night: NightRecord, vm: SleepViewModel, onBack: (() -> Unit)?) {
-    var report by remember(night.nightOf) { mutableStateOf(vm.getReport(night.nightOf)) }
-    var editing by remember(night.nightOf) { mutableStateOf(false) }
-
-    if (editing) {
-        QuestionnaireScreen(
-            nightOf = night.nightOf,
-            initial = report,
-            onSave = { saved -> vm.saveReport(saved); report = saved; editing = false },
-            onCancel = { editing = false }
-        )
-    } else {
-        NightReport(night, report, onBack = onBack, onFillQuestionnaire = { editing = true })
-    }
-}
-
-@Composable
-private fun NightReport(
+internal fun NightReport(
     record: NightRecord,
     report: MorningReportEntity?,
     onBack: (() -> Unit)?,
@@ -220,18 +205,25 @@ private fun QuestionnaireCard(report: MorningReportEntity?, onFill: () -> Unit) 
 
 // ---------------------------------------------------------------- questionnaire screen
 
+private val MED_PRESETS = listOf("ריטלין", "בנזודיאזפינים", "נוגדי דיכאון")
+private const val MED_NONE = "ללא תרופות"
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun QuestionnaireScreen(
+internal fun QuestionnaireScreen(
     nightOf: String,
     initial: MorningReportEntity?,
-    onSave: (MorningReportEntity) -> Unit,
-    onCancel: () -> Unit
+    vm: SleepViewModel,
+    onSaved: () -> Unit
 ) {
     var nightmares by remember { mutableStateOf(initial?.nightmares) }
     var cannabis by remember { mutableStateOf(initial?.cannabis) }
     var alcohol by remember { mutableStateOf(initial?.alcohol) }
-    var meds by remember { mutableStateOf(initial?.medications ?: "") }
+    var meds by remember { mutableStateOf(initial?.medications) }   // null = none
     var note by remember { mutableStateOf(initial?.note ?: "") }
+
+    var expanded by remember { mutableStateOf(false) }
+    var showAdd by remember { mutableStateOf(false) }
 
     Column(
         Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()),
@@ -242,10 +234,42 @@ private fun QuestionnaireScreen(
             color = MaterialTheme.colorScheme.onSurfaceVariant)
 
         YesNoRow("האם היו סיוטים?", nightmares) { nightmares = it }
-        OutlinedTextField(
-            value = meds, onValueChange = { meds = it },
-            label = { Text("תרופות") }, modifier = Modifier.fillMaxWidth()
-        )
+
+        // Medications: choose "none", a preset, a previously-saved one, or add a new one.
+        ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
+            OutlinedTextField(
+                value = meds ?: MED_NONE,
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("תרופות") },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
+                modifier = Modifier.menuAnchor().fillMaxWidth()
+            )
+            ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                DropdownMenuItem(text = { Text(MED_NONE) }, onClick = { meds = null; expanded = false })
+                MED_PRESETS.forEach { p ->
+                    DropdownMenuItem(text = { Text(p) }, onClick = { meds = p; expanded = false })
+                }
+                val saved = vm.savedMedications.filter { it !in MED_PRESETS }
+                if (saved.isNotEmpty()) {
+                    DropdownMenuItem(
+                        enabled = false, onClick = {},
+                        text = {
+                            Text("תרופות שמורות", fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    )
+                    saved.forEach { s ->
+                        DropdownMenuItem(text = { Text(s) }, onClick = { meds = s; expanded = false })
+                    }
+                }
+                DropdownMenuItem(
+                    text = { Text("הוסף תרופה…") },
+                    onClick = { expanded = false; showAdd = true }
+                )
+            }
+        }
+
         YesNoRow("קנאביס", cannabis) { cannabis = it }
         YesNoRow("אלכוהול", alcohol) { alcohol = it }
         OutlinedTextField(
@@ -255,23 +279,43 @@ private fun QuestionnaireScreen(
 
         Button(
             onClick = {
-                onSave(
+                vm.saveReport(
                     MorningReportEntity(
                         nightOf = nightOf,
                         nightmares = nightmares,
-                        medications = meds.ifBlank { null },
+                        medications = meds,
                         cannabis = cannabis,
                         alcohol = alcohol,
                         note = note.ifBlank { null },
                         updatedAtMillis = System.currentTimeMillis()
                     )
                 )
+                onSaved()
             },
             modifier = Modifier.fillMaxWidth()
         ) { Text("שמור") }
-        TextButton(onClick = onCancel, modifier = Modifier.fillMaxWidth()) {
-            Text("אפשר למלא גם אחר כך")
-        }
+    }
+
+    if (showAdd) {
+        var newMed by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { showAdd = false },
+            title = { Text("הוספת תרופה") },
+            text = {
+                OutlinedTextField(
+                    value = newMed, onValueChange = { newMed = it },
+                    label = { Text("שם התרופה") }, modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val n = newMed.trim()
+                    if (n.isNotEmpty()) { vm.addMedication(n); meds = n }
+                    showAdd = false
+                }) { Text("הוסף") }
+            },
+            dismissButton = { TextButton(onClick = { showAdd = false }) { Text("ביטול") } }
+        )
     }
 }
 
