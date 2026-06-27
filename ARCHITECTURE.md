@@ -120,6 +120,7 @@ exits at the Home root. Full detail in [`UI_FLOW_DESIGN.md`](UI_FLOW_DESIGN.md).
 
 ## 9. Related docs
 
+[`DESIGN_SYSTEM.md`](DESIGN_SYSTEM.md) (visual spec from the Base44 reference) ·
 [`HANDOFF.md`](HANDOFF.md) (build log + constraints) · [`UI_FLOW_DESIGN.md`](UI_FLOW_DESIGN.md) ·
 [`ROOM_MIGRATION_DESIGN.md`](ROOM_MIGRATION_DESIGN.md) ·
 [`SCHEDULE_AGNOSTIC_DESIGN.md`](SCHEDULE_AGNOSTIC_DESIGN.md) ·
