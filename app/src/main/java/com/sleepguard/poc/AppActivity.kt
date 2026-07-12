@@ -53,6 +53,6 @@ class AppActivity : ComponentActivity() {
     }
 
     private companion object {
-        const val SPLASH_MIN_MS = 2500L
+        const val SPLASH_MIN_MS = 2000L
     }
 }
