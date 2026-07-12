@@ -32,7 +32,7 @@ fun SplashScreen() {
             painter = painterResource(R.drawable.splash),
             contentDescription = "SleepGuard",
             modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Crop
+            contentScale = ContentScale.Fit
         )
     }
 }
