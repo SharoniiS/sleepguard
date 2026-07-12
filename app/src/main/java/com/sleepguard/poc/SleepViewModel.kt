@@ -6,6 +6,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
@@ -56,6 +59,11 @@ class SleepViewModel(app: Application) : AndroidViewModel(app) {
         if (n.isEmpty()) return
         medicationDao.insert(MedicationEntity(n))
         savedMedications = medicationDao.getAll()
+    }
+
+    /** Refresh off the main thread (e.g. from onResume after returning from Settings). */
+    fun refreshInBackground() {
+        viewModelScope.launch(Dispatchers.IO) { runCatching { refresh() } }
     }
 
     fun openUsageAccessSettings(activity: Activity): Boolean =

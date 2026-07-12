@@ -24,6 +24,19 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.sleepguard.poc.R
 
+/** Full-screen launch splash — the SleepGuard poster shown while the latest data syncs in the background. */
+@Composable
+fun SplashScreen() {
+    Box(Modifier.fillMaxSize().background(SgBackground)) {
+        Image(
+            painter = painterResource(R.drawable.splash),
+            contentDescription = "SleepGuard",
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop
+        )
+    }
+}
+
 /**
  * The signature owl hero. Shows the banner artwork (owl + SleepGuard wordmark) with a dynamic Hebrew
  * title overlaid at the bottom over a legibility scrim. `compact` shortens it (used on the report).
