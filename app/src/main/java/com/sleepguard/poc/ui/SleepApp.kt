@@ -22,8 +22,14 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Bedtime
+import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -39,6 +45,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -53,11 +60,11 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-private enum class Tab(val label: String, val emoji: String) {
-    HOME("בית", "🏠"),
-    LAST("לילה אחרון", "🌙"),
-    HISTORY("היסטוריה", "🕘"),
-    MORE("מידע נוסף", "ℹ️")
+private enum class Tab(val label: String, val icon: ImageVector) {
+    HOME("בית", Icons.Outlined.Home),
+    LAST("לילה אחרון", Icons.Outlined.Bedtime),
+    HISTORY("היסטוריה", Icons.Outlined.History),
+    MORE("מידע נוסף", Icons.Outlined.Info)
 }
 
 @Composable
@@ -82,7 +89,7 @@ fun SleepApp(vm: SleepViewModel, onOpenSettings: () -> Unit) {
                     NavigationBarItem(
                         selected = t == activeTab,
                         onClick = { goTab(t) },
-                        icon = { Text(t.emoji, fontSize = 18.sp) },
+                        icon = { Icon(t.icon, contentDescription = t.label) },
                         label = { Text(t.label) }
                     )
                 }
