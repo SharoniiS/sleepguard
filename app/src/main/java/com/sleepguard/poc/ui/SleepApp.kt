@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -282,19 +283,23 @@ private fun patternColor(p: String): Color = when (p) {
 
 @Composable
 private fun MoreInfoScreen() {
-    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        HeroBanner("מידע נוסף")
         InfoCard(
-            "SleepGuard · גרסה 1.0",
+            "🌙", "SleepGuard · גרסה 1.0",
             "SleepGuard עוקבת אחר פעילות הטלפון בלילה. האפליקציה אינה מאבחנת, אינה מודדת שינה, " +
                 "ואינה מהווה תחליף לייעוץ רפואי. מטרתה לאפשר מעקב תיאורי אחר דפוסי פעילות."
         )
         InfoCard(
-            "מקור הנתונים",
+            "📊", "מקור הנתונים",
             "נתוני הפעילות נאספים על ידי הרכיב הנייטיבי של האפליקציה, שמנטר את זמני הדלקת/כיבוי " +
                 "המסך והנעילה. לא נאסף תוכן, מידע אישי, או נתוני אפליקציות."
         )
         InfoCard(
-            "פרטיות",
+            "🔒", "פרטיות",
             "• לא נאסף מידע אישי מזהה\n• הנתונים נשמרים במכשיר בלבד ואינם נשלחים לשום מקום\n" +
                 "• תוכן המסך אינו נקרא או נשמר"
         )
@@ -345,11 +350,22 @@ internal fun StatCard(modifier: Modifier, label: String, value: String) {
 }
 
 @Composable
-private fun InfoCard(title: String, body: String) {
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp)) {
+private fun InfoCard(emoji: String, title: String, body: String) {
+    Row(
+        Modifier.fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(Brush.verticalGradient(listOf(Color(0xFF161C3A), Color(0xFF0F1430))))
+            .border(1.dp, Color(0x14FFFFFF), RoundedCornerShape(16.dp))
+            .padding(16.dp)
+    ) {
+        Box(
+            Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(Color(0x143D74FF)),
+            contentAlignment = Alignment.Center
+        ) { Text(emoji, fontSize = 18.sp) }
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f)) {
             Text(title, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(6.dp))
             Text(body, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
         }
     }

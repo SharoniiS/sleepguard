@@ -281,42 +281,54 @@ internal fun QuestionnaireScreen(
         Text("אפשר להוסיף פרטים שיעזרו לך להבין את הלילה הזה.",
             color = MaterialTheme.colorScheme.onSurfaceVariant)
 
-        YesNoRow("האם היו סיוטים?", nightmares) { nightmares = it }
+        YesNoRow("☁️", "האם היו סיוטים?", nightmares) { nightmares = it }
 
         // Medications: choose "none", a preset, a previously-saved one, or add a new one.
-        Text("תרופות", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Box {
-            OutlinedButton(onClick = { expanded = true }, modifier = Modifier.fillMaxWidth()) {
-                Text(meds ?: MED_NONE, modifier = Modifier.weight(1f))
-                Text("▾")
-            }
-            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                DropdownMenuItem(text = { Text(MED_NONE) }, onClick = { meds = null; expanded = false })
-                MED_PRESETS.forEach { p ->
-                    DropdownMenuItem(text = { Text(p) }, onClick = { meds = p; expanded = false })
+        Row(
+            Modifier.fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .background(Color(0x0AFFFFFF))
+                .border(1.dp, Color(0x12FFFFFF), RoundedCornerShape(16.dp))
+                .padding(horizontal = 14.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("💊", fontSize = 18.sp)
+            Spacer(Modifier.width(10.dp))
+            Text("תרופות")
+            Spacer(Modifier.weight(1f))
+            Box {
+                OutlinedButton(onClick = { expanded = true }) {
+                    Text(meds ?: MED_NONE)
+                    Text("  ▾")
                 }
-                val saved = vm.savedMedications.filter { it !in MED_PRESETS }
-                if (saved.isNotEmpty()) {
-                    DropdownMenuItem(
-                        enabled = false, onClick = {},
-                        text = {
-                            Text("תרופות שמורות", fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    )
-                    saved.forEach { s ->
-                        DropdownMenuItem(text = { Text(s) }, onClick = { meds = s; expanded = false })
+                DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                    DropdownMenuItem(text = { Text(MED_NONE) }, onClick = { meds = null; expanded = false })
+                    MED_PRESETS.forEach { p ->
+                        DropdownMenuItem(text = { Text(p) }, onClick = { meds = p; expanded = false })
                     }
+                    val saved = vm.savedMedications.filter { it !in MED_PRESETS }
+                    if (saved.isNotEmpty()) {
+                        DropdownMenuItem(
+                            enabled = false, onClick = {},
+                            text = {
+                                Text("תרופות שמורות", fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        )
+                        saved.forEach { s ->
+                            DropdownMenuItem(text = { Text(s) }, onClick = { meds = s; expanded = false })
+                        }
+                    }
+                    DropdownMenuItem(
+                        text = { Text("הוסף תרופה…") },
+                        onClick = { expanded = false; showAdd = true }
+                    )
                 }
-                DropdownMenuItem(
-                    text = { Text("הוסף תרופה…") },
-                    onClick = { expanded = false; showAdd = true }
-                )
             }
         }
 
-        YesNoRow("קנאביס", cannabis) { cannabis = it }
-        YesNoRow("אלכוהול", alcohol) { alcohol = it }
+        YesNoRow("🍃", "קנאביס", cannabis) { cannabis = it }
+        YesNoRow("🥃", "אלכוהול", alcohol) { alcohol = it }
         OutlinedTextField(
             value = note, onValueChange = { note = it },
             label = { Text("הערה חופשית") }, minLines = 3, modifier = Modifier.fillMaxWidth()
@@ -365,17 +377,21 @@ internal fun QuestionnaireScreen(
 }
 
 @Composable
-private fun YesNoRow(label: String, value: Boolean?, onChange: (Boolean) -> Unit) {
-    Card(Modifier.fillMaxWidth()) {
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(label, Modifier.weight(1f))
-            SelectChip("לא", value == false) { onChange(false) }
-            Spacer(Modifier.width(8.dp))
-            SelectChip("כן", value == true) { onChange(true) }
-        }
+private fun YesNoRow(emoji: String, label: String, value: Boolean?, onChange: (Boolean) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color(0x0AFFFFFF))
+            .border(1.dp, Color(0x12FFFFFF), RoundedCornerShape(16.dp))
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(emoji, fontSize = 18.sp)
+        Spacer(Modifier.width(10.dp))
+        Text(label, Modifier.weight(1f))
+        SelectChip("לא", value == false) { onChange(false) }
+        Spacer(Modifier.width(8.dp))
+        SelectChip("כן", value == true) { onChange(true) }
     }
 }
 

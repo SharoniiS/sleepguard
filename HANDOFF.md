@@ -189,8 +189,11 @@ Compose (see [`DESIGN_SYSTEM.md`](DESIGN_SYSTEM.md)); staged. Stage 1:
 - **Owl assets** downloaded to `res/drawable` (`owl_full`, `owl_circle`, `owl_banner`).
 - **`HeroBanner`** component (owl banner art + dynamic Hebrew title over a scrim); wired into Home
   (with `dateWithDay` subtitle) and History; removed the placeholder `Hero`. Home big numbers use Rubik.
-- Next stages: report hero + back overlay, glass cards / gradients (`sg-card`/`sg-card-raised`), the
-  `OwlInsight` gradient card, richer timeline, and per-screen polish.
+- **Stage 2 (done 2026-06-27):** headline fix (show last night, not the one before — removed the 18:00
+  `getLatestComplete` gate); report **owl hero** + back button; **glass/gradient** cards everywhere
+  (StatCard, Home main card w/ glowing moon tile, gradient **OwlInsight** card, timeline in a gradient
+  card w/ blue quiet segment + legend, More-info hero + glass InfoCards w/ icons, questionnaire glass
+  yes/no rows + meds row with emoji icons). Palette + Rubik/Assistant applied throughout.
 
 **2026-06-27 — Build fix + cleanup + docs.** Fixed the build: the medications picker used the
 experimental `ExposedDropdownMenu` (unresolved in Material3 BOM 2024.06) → replaced with a stable
