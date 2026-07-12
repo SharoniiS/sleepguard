@@ -168,29 +168,47 @@ private fun HomeScreen(latest: NightRecord?) {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         HeroBanner("בית", subtitle = dateWithDay(latest.nightOf))
-        Spacer(Modifier.height(20.dp))
-        Ltr {
-            Text(
-                if (q != null) "${fmt(q.first)} – ${fmt(q.second)}" else "—",
-                fontFamily = Rubik, fontSize = 34.sp, fontWeight = FontWeight.Bold
-            )
-        }
-        Text("חלון חוסר פעילות", color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Spacer(Modifier.height(20.dp))
-        Text(if (q != null) dur(q.third) else "—", fontFamily = Rubik, fontSize = 30.sp, fontWeight = FontWeight.Bold)
-        Text("משך חוסר הפעילות", color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(16.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Chip(availabilityHe(latest.confidence))
-            Chip(patternHe(latest.restPattern))
+
+        // Main summary card
+        Column(
+            Modifier.fillMaxWidth()
+                .clip(RoundedCornerShape(20.dp))
+                .background(Brush.verticalGradient(listOf(Color(0xFF1B2350), Color(0xFF0E1430))))
+                .border(1.dp, Color(0x143D74FF), RoundedCornerShape(20.dp))
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Box(
+                Modifier.size(56.dp).clip(RoundedCornerShape(16.dp)).background(Color(0x143D74FF)),
+                contentAlignment = Alignment.Center
+            ) { Text("🌙", fontSize = 24.sp) }
+            Spacer(Modifier.height(14.dp))
+            Ltr {
+                Text(
+                    if (q != null) "${fmt(q.first)} – ${fmt(q.second)}" else "—",
+                    fontFamily = Rubik, fontSize = 34.sp, fontWeight = FontWeight.Bold
+                )
+            }
+            Text("חלון חוסר פעילות", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(18.dp))
+            Text(if (q != null) dur(q.third) else "—", fontFamily = Rubik, fontSize = 32.sp, fontWeight = FontWeight.Bold)
+            Text("משך חוסר הפעילות", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(16.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Chip(availabilityHe(latest.confidence))
+                Chip(patternHe(latest.restPattern))
+            }
         }
-        Spacer(Modifier.height(20.dp))
+
+        Spacer(Modifier.height(14.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             StatCard(Modifier.weight(1f), "הפרעות",
                 if (latest.awakenings.isEmpty()) "ללא" else latest.awakenings.size.toString())
             StatCard(Modifier.weight(1f), "שימוש לפני חוסר הפעילות",
                 latest.preSleepPhoneTimeMillis?.let { "${it / 60000} דק'" } ?: "לא ידוע")
         }
+        Spacer(Modifier.height(16.dp))
     }
 }
 
