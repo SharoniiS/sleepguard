@@ -34,7 +34,7 @@ fun HeroBanner(title: String?, subtitle: String? = null, compact: Boolean = fals
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(24.dp))
-            .aspectRatio(if (compact) 1024f / 360f else 1024f / 524f)
+            .aspectRatio(if (compact) 1024f / 470f else 1024f / 524f)
     ) {
         Image(
             painter = painterResource(R.drawable.owl_banner),

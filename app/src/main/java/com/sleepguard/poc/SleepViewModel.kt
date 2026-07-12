@@ -44,8 +44,9 @@ class SleepViewModel(app: Application) : AndroidViewModel(app) {
     fun refresh() {
         hasPermission = usageAccess.hasUsageAccess()
         if (hasPermission) runCatching { collectBackfill() }
-        nights = repo.loadAll().sortedByDescending { it.nightOf }
-        latestComplete = repo.getLatestComplete()
+        val sorted = repo.loadAll().sortedByDescending { it.nightOf }
+        nights = sorted
+        latestComplete = pickHeadline(sorted)
         savedMedications = medicationDao.getAll()
     }
 
@@ -65,6 +66,17 @@ class SleepViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Save (insert/replace) a night's morning self-report. */
     fun saveReport(report: MorningReportEntity) = morningRepo.save(report)
+
+    private fun hasRest(r: NightRecord) = r.mainRestEpisode != null || r.primaryRest != null
+
+    /** Newest night for the headline. Skip it only if it's TODAY's and has no detected rest yet
+     *  (a premature mid-collection); then fall back to the newest night that has a rest window. */
+    private fun pickHeadline(sortedDesc: List<NightRecord>): NightRecord? {
+        val newest = sortedDesc.firstOrNull() ?: return null
+        val today = LocalDate.now(zone).toString()
+        val partial = newest.nightOf == today && !hasRest(newest)
+        return if (partial) sortedDesc.firstOrNull { hasRest(it) } ?: newest else newest
+    }
 
     // ---- collection (ported from MainActivity; see class note) ----
 

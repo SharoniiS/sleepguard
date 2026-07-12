@@ -23,6 +23,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -37,6 +38,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -56,18 +58,15 @@ internal fun NightReport(
     var rawOpen by remember { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize()) {
-        // top bar
-        Row(
-            Modifier.fillMaxWidth().padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        Box(Modifier.fillMaxWidth()) {
+            HeroBanner("דו\"ח פעילות יומי", subtitle = dateWithDay(record.nightOf), compact = true)
             if (onBack != null) {
-                TextButton(onClick = onBack) { Text("→") }
-            }
-            Spacer(Modifier.weight(1f))
-            Column(horizontalAlignment = Alignment.End) {
-                Text("דו\"ח פעילות יומי", fontWeight = FontWeight.Bold)
-                Text(dateShort(record.nightOf), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                IconButton(
+                    onClick = onBack,
+                    modifier = Modifier.align(Alignment.TopEnd).padding(8.dp)
+                ) {
+                    Text("→", color = Color.White, fontSize = 20.sp)
+                }
             }
         }
 

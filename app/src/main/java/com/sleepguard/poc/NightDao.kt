@@ -24,9 +24,6 @@ interface NightDao {
     @Query("SELECT * FROM nights WHERE nightOf = :nightOf")
     fun getByNight(nightOf: String): NightEntity?
 
-    /** The newest fully-elapsed night (collectedAt >= windowEnd), or null. For Home / Last Night. */
-    @Query("SELECT * FROM nights WHERE collectedAtMillis >= windowEndMillis ORDER BY nightOf DESC LIMIT 1")
-    fun getLatestComplete(): NightEntity?
 
     /** Summary projection (no blob → never loads raw events) for list / Week screens. */
     @Query(

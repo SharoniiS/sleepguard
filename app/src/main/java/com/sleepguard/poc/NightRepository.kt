@@ -32,9 +32,6 @@ class NightRepository(context: Context) {
 
     fun clearAll() = dao.clearAll()
 
-    /** The newest fully-elapsed night (the headline for Home / Last Night), or null. */
-    fun getLatestComplete(): NightRecord? = dao.getLatestComplete()?.let { NightEntityMapper.toRecord(it) }
-
     /**
      * One-time migration from the pre-Room store: if `sleepguard_history.json` exists, import every
      * night into Room (upsert, so re-running is harmless) and rename the file to ".imported" so it

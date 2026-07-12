@@ -2,6 +2,7 @@ package com.sleepguard.poc.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -35,6 +36,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontWeight
@@ -306,9 +308,17 @@ internal fun Chip(text: String) {
 
 @Composable
 internal fun StatCard(modifier: Modifier, label: String, value: String) {
-    Card(modifier) {
-        Column(Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(value, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+    Box(
+        modifier
+            .clip(RoundedCornerShape(16.dp))
+            .background(Brush.verticalGradient(listOf(Color(0xFF1A2142), Color(0xFF121834))))
+            .border(1.dp, Color(0x14FFFFFF), RoundedCornerShape(16.dp))
+    ) {
+        Column(
+            Modifier.fillMaxWidth().padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(value, fontFamily = Rubik, fontSize = 22.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(4.dp))
             Text(label, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center)
@@ -361,12 +371,6 @@ internal fun availabilityHe(c: String): String = when (c) {
 
 /** Reference span for the History progress bar (10h = a "full" bar). */
 private const val TEN_HOURS_MS = 36_000_000f
-
-private val ddmmyy = DateTimeFormatter.ofPattern("dd-MM-yy")
-
-/** "2026-06-27" -> "27-06-26". */
-internal fun dateShort(nightOf: String): String =
-    runCatching { LocalDate.parse(nightOf).format(ddmmyy) }.getOrDefault(nightOf)
 
 /** "2026-06-27" -> "יום ו', 27.6". */
 internal fun dateWithDay(nightOf: String): String = runCatching {
