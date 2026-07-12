@@ -129,17 +129,23 @@ internal fun NightReport(
 
 @Composable
 private fun TimelineBar(record: NightRecord) {
-    Column {
+    val q = quiet(record)
+    val axisStart = record.windowStartMillis
+    val axisEnd = maxOf(record.collectedAtMillis, q?.second ?: record.windowEndMillis)
+    val total = (axisEnd - axisStart).coerceAtLeast(1L).toFloat()
+    Column(
+        Modifier.fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(Brush.verticalGradient(listOf(Color(0xFF161C3A), Color(0xFF0F1430))))
+            .border(1.dp, Color(0x143D74FF), RoundedCornerShape(16.dp))
+            .padding(16.dp)
+    ) {
         Text("ציר זמן", fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(8.dp))
-        val q = quiet(record)
-        val axisStart = record.windowStartMillis
-        val axisEnd = maxOf(record.collectedAtMillis, q?.second ?: record.windowEndMillis)
-        val total = (axisEnd - axisStart).coerceAtLeast(1L).toFloat()
+        Spacer(Modifier.height(12.dp))
         Row(
-            Modifier.fillMaxWidth().height(12.dp)
-                .clip(RoundedCornerShape(6.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant)
+            Modifier.fillMaxWidth().height(14.dp)
+                .clip(RoundedCornerShape(7.dp))
+                .background(Color(0xFF0C1124))
         ) {
             if (q != null) {
                 val preF = ((q.first - axisStart).toFloat() / total).coerceIn(0f, 1f)
@@ -148,22 +154,43 @@ private fun TimelineBar(record: NightRecord) {
                 if (preF > 0f) Spacer(Modifier.weight(preF))
                 Spacer(
                     Modifier.weight(quietF.coerceAtLeast(0.001f)).fillMaxHeight()
-                        .background(MaterialTheme.colorScheme.primary)
+                        .background(
+                            Brush.horizontalGradient(
+                                listOf(Color(0x593D74FF), Color(0x8C3D74FF), Color(0x593D74FF))
+                            )
+                        )
                 )
                 if (postF > 0f) Spacer(Modifier.weight(postF))
             }
         }
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(6.dp))
         Ltr {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(fmt(axisStart), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(fmt(axisEnd), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
+        Spacer(Modifier.height(12.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            LegendItem(SgPrimary, "מנוחה")
+            LegendItem(SgCyan, "הפרעות")
+        }
+        Spacer(Modifier.height(8.dp))
         Text(
-            "המקטע המודגש = חלון חוסר הפעילות. פעילות לפני המנוחה היא הערכה גסה בלבד.",
-            fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
+            "פעילות לפני המנוחה היא הערכה גסה בלבד.",
+            fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+    }
+}
+
+@Composable
+private fun LegendItem(color: Color, label: String) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Box(Modifier.size(8.dp).clip(CircleShape).background(color))
+        Text(label, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
