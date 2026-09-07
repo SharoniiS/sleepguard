@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -59,7 +58,6 @@ internal fun NightReport(
     onFillQuestionnaire: () -> Unit
 ) {
     val q = quiet(record)
-    var rawOpen by remember { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize()) {
         Box(Modifier.fillMaxWidth()) {
@@ -103,21 +101,7 @@ internal fun NightReport(
                 StatCard(Modifier.fillMaxWidth(), "שימוש שעתיים לפני השינה",
                     record.preSleepPhoneTimeMillis?.let { "${it / 60000} דק'" } ?: "לא ידוע")
             }
-            item {
-                Card(Modifier.fillMaxWidth().clickable { rawOpen = !rawOpen }) {
-                    Row(
-                        Modifier.fillMaxWidth().padding(14.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(if (rawOpen) "▲" else "▼")
-                        Text("יומן פעילות גולמי (${record.events.size})", fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-            if (rawOpen) {
-                items(record.events.asReversed()) { e -> RawEventRow(e) }
-            }
+            item { RawActivityLog(record.events) }
             item { InsightCard(insightHe(record)) }
             item { QuestionnaireCard(report, onFillQuestionnaire) }
             item { Spacer(Modifier.height(24.dp)) }
@@ -204,6 +188,61 @@ private fun RawEventRow(e: StoredEvent) {
         Text(fmt(e.timestampMillis), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
+
+/**
+ * Collapsible raw activity log with a two-category filter (screen on/off vs lock/unlock).
+ * Shared by the Night Report and the Home "last 24h" card. Self-contained (owns its own expand +
+ * filter state) and renders its rows in a plain [Column], so it drops into a single LazyColumn
+ * `item {}` or into a scrolling Column unchanged. Event counts are small (tens), so non-lazy is fine.
+ */
+@Composable
+internal fun RawActivityLog(events: List<StoredEvent>, modifier: Modifier = Modifier) {
+    var open by remember { mutableStateOf(false) }
+    var showScreen by remember { mutableStateOf(true) }
+    var showLock by remember { mutableStateOf(true) }
+
+    Column(modifier.fillMaxWidth()) {
+        Card(Modifier.fillMaxWidth().clickable { open = !open }) {
+            Row(
+                Modifier.fillMaxWidth().padding(14.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(if (open) "▲" else "▼")
+                Text("יומן פעילות גולמי (${events.size})", fontWeight = FontWeight.Bold)
+            }
+        }
+        if (open) {
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SelectChip("מסך", showScreen) { showScreen = !showScreen }
+                SelectChip("נעילה ופתיחה", showLock) { showLock = !showLock }
+            }
+            Spacer(Modifier.height(8.dp))
+            when {
+                !showScreen && !showLock ->
+                    Text("לא נבחרו סוגים להצגה.", fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                else -> {
+                    val visible = events.filter { rawEventVisible(it.type, showScreen, showLock) }
+                    if (visible.isEmpty())
+                        Text("אין מאורעות מסוג זה.", fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    else
+                        Column { visible.asReversed().forEach { e -> RawEventRow(e) } }
+                }
+            }
+        }
+    }
+}
+
+/** Two-category filter predicate for [RawActivityLog]: screen on/off vs lock/unlock. Pure/testable. */
+internal fun rawEventVisible(type: String, showScreen: Boolean, showLock: Boolean): Boolean =
+    when (type) {
+        "SCREEN_INTERACTIVE", "SCREEN_NON_INTERACTIVE" -> showScreen
+        "KEYGUARD_HIDDEN", "KEYGUARD_SHOWN" -> showLock
+        else -> showScreen || showLock
+    }
 
 @Composable
 private fun InsightCard(text: String) {
