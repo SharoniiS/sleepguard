@@ -189,11 +189,6 @@ private fun HomeScreen(latest: NightRecord?, last24h: Last24hActivity?) {
                     .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Box(
-                    Modifier.size(56.dp).clip(RoundedCornerShape(16.dp)).background(Color(0x143D74FF)),
-                    contentAlignment = Alignment.Center
-                ) { Text("🌙", fontSize = 24.sp) }
-                Spacer(Modifier.height(14.dp))
                 Ltr {
                     Text(
                         if (q != null) "${fmt(q.first)} – ${fmt(q.second)}" else "—",
@@ -257,24 +252,32 @@ private fun Last24hCard(data: Last24hActivity?) {
     }
 }
 
-/** A horizontal 24h track with one thin tick per event, positioned by time and colored by category. */
+/** A clean 24h activity band: screen-on spans shaded on a rounded track, styled like the report
+ *  timeline. Descriptive only — the fill marks when the screen was on, no analysis. */
 @Composable
 private fun ActivityStrip(data: Last24hActivity) {
     val span = (data.endMillis - data.startMillis).coerceAtLeast(1L).toFloat()
+    val spans = screenOnSpans(data)
     Column {
         BoxWithConstraints(
-            Modifier.fillMaxWidth().height(28.dp)
-                .clip(RoundedCornerShape(8.dp))
+            Modifier.fillMaxWidth().height(14.dp)
+                .clip(RoundedCornerShape(7.dp))
                 .background(Color(0xFF0C1124))
         ) {
             val trackWidth = maxWidth
-            data.events.forEach { e ->
-                val f = ((e.timestampMillis - data.startMillis).toFloat() / span).coerceIn(0f, 1f)
+            spans.forEach { (s, e) ->
+                val startF = ((s - data.startMillis).toFloat() / span).coerceIn(0f, 1f)
+                val widthF = ((e - s).toFloat() / span).coerceIn(0f, 1f)
                 Box(
-                    Modifier.offset(x = trackWidth * f)
+                    Modifier.offset(x = trackWidth * startF)
+                        .width((trackWidth * widthF).coerceAtLeast(2.dp))
                         .fillMaxHeight()
-                        .width(2.dp)
-                        .background(if (isScreenEvent(e.type)) SgPrimary else SgCyan)
+                        .clip(RoundedCornerShape(7.dp))
+                        .background(
+                            Brush.horizontalGradient(
+                                listOf(Color(0x593D74FF), Color(0x8C3D74FF), Color(0x593D74FF))
+                            )
+                        )
                 )
             }
         }
@@ -289,10 +292,24 @@ private fun ActivityStrip(data: Last24hActivity) {
         }
         Spacer(Modifier.height(10.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            StripLegend(SgPrimary, "מסך")
-            StripLegend(SgCyan, "נעילה ופתיחה")
+            StripLegend(SgPrimary, "פעילות")
         }
     }
+}
+
+/** Screen-on intervals derived from raw events (interactive -> next non-interactive), for the band.
+ *  Pure and descriptive: no thresholds, no sleep inference. Events arrive sorted by timestamp. */
+private fun screenOnSpans(data: Last24hActivity): List<Pair<Long, Long>> {
+    val spans = mutableListOf<Pair<Long, Long>>()
+    var onAt: Long? = null
+    data.events.forEach { e ->
+        when (e.type) {
+            "SCREEN_INTERACTIVE" -> if (onAt == null) onAt = e.timestampMillis
+            "SCREEN_NON_INTERACTIVE" -> onAt?.let { spans.add(it to e.timestampMillis); onAt = null }
+        }
+    }
+    onAt?.let { spans.add(it to data.endMillis) }   // still on at 'now'
+    return spans
 }
 
 @Composable
@@ -305,9 +322,6 @@ private fun StripLegend(color: Color, label: String) {
         Text(label, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
-
-private fun isScreenEvent(type: String): Boolean =
-    type == "SCREEN_INTERACTIVE" || type == "SCREEN_NON_INTERACTIVE"
 
 // ---------------------------------------------------------------- History
 
