@@ -15,6 +15,17 @@ import java.time.LocalTime
 import java.time.ZoneId
 
 /**
+ * A rolling snapshot of phone activity for the window [startMillis, endMillis] — the Home
+ * "last 24 hours" view. Purely descriptive raw events (timestamp + type); NOT analyzed and NEVER
+ * persisted, so it can't collide with a stored night record.
+ */
+data class Last24hActivity(
+    val startMillis: Long,
+    val endMillis: Long,
+    val events: List<StoredEvent>
+)
+
+/**
  * State holder for the Compose product UI. Reuses the existing data/logic classes. Synchronous for
  * now (Room runs with allowMainThreadQueries; data set is tiny) — moves to coroutines later.
  *
@@ -42,6 +53,8 @@ class SleepViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var savedMedications by mutableStateOf<List<String>>(emptyList())
         private set
+    var last24h by mutableStateOf<Last24hActivity?>(null)
+        private set
 
     /** Re-check permission, auto-collect recent nights, and reload. Call on resume. */
     fun refresh() {
@@ -51,6 +64,7 @@ class SleepViewModel(app: Application) : AndroidViewModel(app) {
         nights = sorted
         latestComplete = pickHeadline(sorted)
         savedMedications = medicationDao.getAll()
+        last24h = if (hasPermission) runCatching { collectLast24h() }.getOrNull() else null
     }
 
     /** Add (and remember) a medication name so it can be reused from the questionnaire dropdown. */
@@ -103,6 +117,19 @@ class SleepViewModel(app: Application) : AndroidViewModel(app) {
         at(morning.minusDays(1), 18) to at(morning, 18)
 
     private fun isComplete(r: NightRecord): Boolean = r.collectedAtMillis >= r.windowEndMillis
+
+    /** Collect the rolling last-24h window [now-24h, now] on demand. Independent of the nightly
+     *  backfill and NOT persisted — feeds the Home "last 24 hours" card. */
+    private fun collectLast24h(): Last24hActivity {
+        val now = Instant.now().toEpochMilli()
+        val start = now - 24L * 60 * 60 * 1000
+        val collection = collector.collect(start, now)
+        return Last24hActivity(
+            startMillis = start,
+            endMillis = now,
+            events = collection.events.map { StoredEvent(it.timestampMillis, it.type.name) }
+        )
+    }
 
     private fun collectBackfill() {
         val today = LocalDate.now(zone)
