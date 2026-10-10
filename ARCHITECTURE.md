@@ -30,15 +30,17 @@ around it.
 | `ui/SleepApp.kt` | Scaffold, 4-tab bottom nav, in-app back stack, Home / History / More-info, shared helpers |
 | `ui/NightReport.kt` | Shared Night Report screen + Questionnaire sub-screen |
 | `ui/Theme.kt` | Minimal dark Material3 theme, RTL (placeholder visuals) |
-| `SleepViewModel.kt` | UI state (permission, nights, latestComplete, savedMedications) + collection + repos |
+| `SleepViewModel.kt` | UI state (permission, nights, latestComplete, savedMedications, last 24h) + collection + repos; one refresh at a time |
+| `NightWindow.kt` | The night window (18:00 → 18:00) + the event-collection range (2h lead) — pure |
+| `BackfillPolicy.kt` | Which recent nights to (re)analyze, and from which events (retention guard) — pure |
 | `UsageAccessManager.kt` | Usage Access permission check + open settings |
 | `ScreenEventsCollector.kt` | Read & filter screen/lock events for a window |
 | `NightPatternAnalyzer.kt` | The analysis (quiet periods, awakenings, pattern, confidence) — pure |
 | `Models.kt` | Analyzer models / config / enums |
 | `NightRecord.kt` | Serializable storage DTO (one per night) |
 | `NightRecordMapper.kt` | analyzer result → `NightRecord` (pure) |
-| `NightRepository.kt` | Room-backed repo (`loadAll`/`upsert`/`clearAll`/`getLatestComplete`) + one-time JSON import |
-| `NightEntity.kt` | Room row for a night (`NightSummary` projection too) |
+| `NightRepository.kt` | Room-backed repo (`loadAll`/`upsert`/`clearAll`) + one-time JSON import |
+| `NightEntity.kt` | Room row for a night |
 | `NightDao.kt` / `NightEntityMapper.kt` | DAO + pure `NightRecord ⇄ NightEntity` mapper |
 | `MorningReportEntity/Dao/Repository.kt` | Per-night user self-report (questionnaire) |
 | `MedicationEntity/Dao.kt` | User's reusable medication names |
@@ -110,11 +112,11 @@ exits at the Home root. Full detail in [`UI_FLOW_DESIGN.md`](UI_FLOW_DESIGN.md).
 
 ## 8. Known temporary / follow-ups
 
-- **Collection logic is duplicated** in `MainActivity` (debug) and `SleepViewModel` — intentional
-  during the View→Compose move; collapses to one copy when `MainActivity` is retired.
+- **The backfill loop is duplicated** in `MainActivity` (debug) and `SleepViewModel` (the night
+  window itself is shared via `NightWindow`); collapses to one copy when `MainActivity` is retired.
 - `allowMainThreadQueries()` (tiny data set) — move reads to Flow/coroutines in a later pass.
 - `exportSchema=false` — turn on (+ `room.schemaLocation`) before the next schema change.
-- DAO/migration tests need Robolectric/instrumented (the pure JVM suite has **43** tests).
+- DAO/migration tests need Robolectric/instrumented (the pure JVM suite has **93** tests).
 - Visual design is a **placeholder** dark theme; a real design pass (and the owl artwork) is pending.
 - Internal Kotlin package is still `com.sleepguard.poc` (not user-facing); optional rename later.
 

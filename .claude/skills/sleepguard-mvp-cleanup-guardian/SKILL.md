@@ -26,7 +26,9 @@ stop and report it instead of doing it.
 - **Local-first, non-invasive, observational** — not clinical, not diagnostic.
 - Relevant events only: `SCREEN_INTERACTIVE`, `SCREEN_NON_INTERACTIVE`, `KEYGUARD_SHOWN`,
   `KEYGUARD_HIDDEN`.
-- **Meaningful interaction** = unlock (`KEYGUARD_HIDDEN`) **OR** screen-on duration ≥ 60 s.
+- **Meaningful interaction** (analyzer 1.1.0) = the screen was on **while the phone was unlocked**
+  (an unlock during it, or still unlocked from before, ≤ 30 min). A lit but locked screen is never
+  meaningful. Only when the input has no lock events at all: screen-on ≥ 60 s.
 - Never tracks app content, messages, notifications, typing, location, microphone, camera, or
   any personal content. Only timestamps + event types + derived summary.
 
@@ -42,7 +44,7 @@ The current POC screen is valuable and the user is satisfied with it. Preserve i
 - First use after the main quiet period
 - Pre-sleep phone use in the last 2 hours
 - Possible awakenings / interruptions
-- Confidence
+- Consolidated / fragmented pattern
 - History of previous analyzed nights
 - Raw logs / debug data (kept for hackathon-demo value)
 
@@ -116,10 +118,11 @@ HANDOFF's own rule: if docs conflict with code, the code wins).
 
 **B. "Not shown on screen" ≠ "dead."** A model can be demoted to internal-only yet still be
 load-bearing. Before deleting anything that looks superseded, trace whether it feeds: the
-sleep-like / quiet-block detection, the awakenings, or — most importantly — the **displayed
-Confidence**. If it does, keep it; removing it would silently change the screen and break tests.
-(Concrete recurring example: a clock-based labeling model that is no longer rendered but still
-computes `isSleepLike`, awakenings, and confidence. Confirm the current state before acting.)
+sleep-like / quiet-block detection, the awakenings, or a **stored** field. If it does, keep it;
+removing it would silently change the screen or saved data and break tests. (Concrete recurring
+example: the clock-based labeling model — no longer rendered, and since 2026-10-10 its Confidence
+is not displayed either, but it still computes stored flags and the stored `confidence`. Confirm
+the current state before acting.)
 
 **C. A half-finished migration's "next phase" is not cleanup.** If you find a partially-migrated
 design — e.g. two coexisting models where one drives the UI and the other runs internally — do
@@ -142,15 +145,18 @@ cleanup. Preserve and flag instead. Likewise, do not casually change `STORAGE_SC
 the JSON shape.
 
 **G. After editing a data class and its constructor call, re-read both and confirm the field
-count matches the constructor-arg count.** A missing or extra argument will not compile — and you
-usually cannot compile here (see H), so this manual check is your safety net.
+count matches the constructor-arg count.** A missing or extra argument will not compile — compile
+(see H) to confirm; when compiling is not possible, this manual check is your safety net.
 
-**H. This environment usually cannot build or run the tests.** Expect no JDK, no Kotlin compiler,
-no committed Gradle wrapper, and no Android SDK. Verify edits by reading + full-tree grep +
-arg-count matching instead. **Never claim tests passed.** State plainly that they were not run and
-why, and tell the user to run them in Android Studio (right-click the `com.sleepguard.poc` test
-package → Run). Do not trust documented test counts — count the `@Test` annotations yourself if
-you need a number.
+**H. Run the tests — but only claim what actually ran.** There is no committed Gradle wrapper, but
+on the owner's machine the tests DO run (verified 2026-10-10) with Android Studio's bundled JDK and
+the cached Gradle 8.13: set `JAVA_HOME` to `C:\Program Files\Android\Android Studio\jbr` and run
+`gradle :app:testDebugUnitTest :app:compileDebugKotlin --offline` with the binary under
+`~/.gradle/wrapper/dists/gradle-8.13-bin/*/gradle-8.13/bin/` (`:app:lintDebug` and
+`:app:assembleDebug` work too). If that is unavailable, verify by reading + full-tree grep +
+arg-count matching, state plainly that tests were not run and why, and tell the user to run them in
+Android Studio (right-click the `com.sleepguard.poc` test package → Run). **Never claim tests
+passed** without a run. Do not trust documented test counts — count from the test results.
 
 **I. Work only inside `SleepGuardAndroidPOC/`.** It sits among unrelated personal files and other
 projects — ignore those entirely. Ignore generated output under `app/build/`; never edit it or
