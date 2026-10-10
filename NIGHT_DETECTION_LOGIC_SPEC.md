@@ -1,6 +1,8 @@
 # SleepGuard — Night Detection Logic (Response-Evidence Model)
 
-> Status: **DESIGN / FROZEN SPEC. Not yet implemented.**
+> Status: **DESIGN / FROZEN SPEC.** Bugs `1a`, `0.3`, and (as of 2026-10-10, analyzer `1.1.0`)
+> `0.2` + the interruption policy are **implemented** — see **§15** for the decisions actually built.
+> Pattern detection, scoring, overlay and personalization (§4, §6, §9, §10) remain unimplemented.
 > This freezes the agreed logic for telling a *real wake* apart from a *passive screen
 > event*. It supersedes the implicit "first meaningful use after the quiet block = wake"
 > behavior that produced the two bugs in §0.
@@ -385,7 +387,12 @@ ordering dependency.
 
 ---
 
-## 13. Bug `0.2` design — only `Unlock` breaks sleep (DESIGN / DEFERRED, not implemented)
+## 13. Bug `0.2` design — only `Unlock` breaks sleep (IMPLEMENTED 2026-10-10 — see §15.1)
+
+> As built, the rule is "the phone was unlocked while the screen was on" (unlock during the session
+> or still unlocked from before), with the §13.2 no-lock-events fallback. `LOCKED_SCREEN_ACTIVITY`
+> was NOT added as a stored category: locked screen-ons are simply not `REAL_USE` (they remain in the
+> raw event log).
 
 Resolves the principle: **`duration >= minOnMillis` without `Unlock` is a *significant screen
 event*, but not necessarily `REAL_USE` and not necessarily end-of-sleep. Don't delete the
@@ -499,7 +506,7 @@ policy-free measurements:
 - `timeOfNight` — clock position (display metadata only, never a classifier input — per
   `SCHEDULE_AGNOSTIC_DESIGN`).
 
-### 14.3 Sleep-label policy (DEFERRED — boundaries are a product/clinical decision, TBD)
+### 14.3 Sleep-label policy (DECIDED 2026-10-10 — see §15.2 for the values as built)
 
 A thin, tunable layer maps the measurements to a label. **Parameters named now; values decided
 later.** Strawman starting points in brackets — all explicitly open:
@@ -618,3 +625,73 @@ split by a single brief bridged awakening, while the displayed structural `restP
 returns `CONSOLIDATED`. `nightPattern` is **internal and not shown** (Phase 2 made `restPattern` drive
 the UI), so this does not affect the user-facing report. Left untouched on purpose; align it only if
 the clock layer is retired (`SCHEDULE_AGNOSTIC_DESIGN` Phase 3) or by an explicit separate decision.
+
+---
+
+## 15. Decisions of 2026-10-10 — analyzer `1.1.0` (IMPLEMENTED, approved by the user)
+
+A logic review ran realistic nights through the analyzer (probe, then permanent
+`NightScenarioTest`). The user decided each finding; this section supersedes the DEFERRED parts of
+§13 and §14.3 where they differ.
+
+### 15.1 Real use = an unlocked phone (bug `0.2`, replaces §13.2's duration path)
+- A screen-on is `REAL_USE` only if the phone was unlocked while the screen was on: a
+  `KEYGUARD_HIDDEN` during the session, **or** the phone was still unlocked from before (last
+  lock-state event is `KEYGUARD_HIDDEN`, no `KEYGUARD_SHOWN` since) — e.g. a "lock after X min"
+  setting. That carry-over is capped at `unlockCarryOverMinutes` (30) since the screen went off /
+  the unlock, so one missed lock event cannot turn every later notification into "use".
+- A lit but **locked** screen — alarm, incoming call (answered or not), notification, lock-screen
+  reading — is never `REAL_USE`, regardless of duration. (User: "as long as the screen is on but
+  still locked, it is not real use".)
+- Fallback (§13.2 reliability gate, kept): when the input contains **no** lock/unlock events at all
+  (a phone without a lock screen), the old `screen-on >= 60 s` rule applies and the record gets the
+  `NO_LOCK_EVENTS` flag. Otherwise the whole day would read as sleep.
+- `KEYGUARD_SHOWN` is documented by Android as logged "whether or not the screen is off", which is
+  what makes lock-state tracking possible.
+
+### 15.2 Interruption vs final wake (resolves §14.3)
+For the activity between two sleep-like (>= 90 min) blocks, measured from the first touch until
+quiet returns:
+
+| Activity | Quiet that resumes after it | Result |
+|---|---|---|
+| <= 60 min (`awakeningMaxMinutes`) | any | interruption — the night continues |
+| 60 min – 3h (`longInterruptionMaxMinutes`) | >= 3h (`longReturnMinMinutes`) | long interruption — the night continues |
+| otherwise | — | final wake (forward) / start of the night (backward) |
+
+- "The quiet that resumes" includes later blocks joined by short interruptions (a brief check
+  inside it does not break it).
+- Applies in both directions from the longest block.
+- `restPattern`: one LONG interruption makes the night `FRAGMENTED` (as do 2+ interruptions or a
+  separate rest period).
+- The episode's `durationMillis` is **net**: interruptions are subtracted. The window times are
+  unchanged.
+- The 3h cap exists so a normal morning (5h awake) followed by a 3h phone-free midday is not joined
+  to the previous night.
+- **Accepted consequences** (user approved): a brief morning check followed by 2h without the phone
+  extends the night (finding 3, kept); short night + <= 3h of morning use + a long phone-free workday
+  joins into one night with a long interruption; a >= 90-min phone-free evening followed by <= 60 min
+  of use joins the night; a white night with > 3h awake splits and the shorter part is not shown.
+
+### 15.3 Night window 18:00 -> 18:00
+`NightWindow.anchors`: the analysis window opens at 18:00 of the previous day (was 22:00), so
+consecutive nights tile and a user who falls asleep before 22:00 is seen. Events are collected from
+16:00 (`windowStart - preSleepLookbackMinutes`); the lead is used **only** for "use in the 2h before
+sleep" and never becomes part of the night. The raw log in the Night Report shows the window only.
+
+### 15.4 Phone-down / pre-sleep use anchored to the shown window
+`phoneDownTime` = last in-window `REAL_USE` ending at or before the **main rest episode** start (was:
+before the single longest block, which made a 2-min night check the "phone-down"). The 2h lookback
+is no longer clipped at the window opening. Unknown (null) when the episode starts at the opening.
+
+### 15.5 Kept as-is by decision
+- Finding 3: a >= 90-min quiet joined to the night by a brief check stays joined. Rationale (user):
+  the app's users touch the phone often; two hours without even lighting the screen is rare.
+- Finding 5: the longest rest wins wherever it falls in the window.
+
+### 15.6 UI + history
+- The "data level" (`confidence`) chip is removed from Home and the Night Report; `confidence` is
+  still computed and stored.
+- Nights inside the 9-day backfill that were produced by an older `analyzerVersion` are re-analyzed
+  once (`BackfillPolicy`). Retention guard: if the fresh system read has fewer in-window events than
+  the stored record, the stored events are re-analyzed instead. Older nights keep their results.
