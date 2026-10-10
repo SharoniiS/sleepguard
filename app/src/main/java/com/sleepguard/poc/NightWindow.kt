@@ -26,9 +26,13 @@ object NightWindow {
         windowEnd = at(morning, 18, zone)
     )
 
-    /** The range of events to read for that night: the analysis window itself. */
-    fun collectionRange(morning: LocalDate, zone: ZoneId): Pair<Long, Long> {
+    /**
+     * The range of events to read for that night: the analysis window plus a lead of [leadMinutes]
+     * before its opening. The lead is used ONLY for "phone use in the 2 hours before sleep" (someone
+     * who puts the phone down at 19:00 needs 17:00–19:00); it never becomes part of the night.
+     */
+    fun collectionRange(morning: LocalDate, zone: ZoneId, leadMinutes: Long): Pair<Long, Long> {
         val a = anchors(morning, zone)
-        return a.windowStart to a.windowEnd
+        return (a.windowStart - leadMinutes * 60_000L) to a.windowEnd
     }
 }

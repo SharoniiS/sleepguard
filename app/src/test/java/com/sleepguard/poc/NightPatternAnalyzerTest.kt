@@ -304,13 +304,67 @@ class NightPatternAnalyzerTest {
 
     @Test
     fun preSleepPhoneTimeCountsOnlyLastTwoHours() {
-        // Phone-down at the 3H use; an earlier use at 0 (3h before) is outside the 2h lookback.
-        val events = use(0L) + use(3 * H) + fill(11 * H, 20 * H, 80L)
+        // Uses at 22:00, 23:30, 00:30 (gaps < 90 min), phone-down 00:32. The 22:00 use is more
+        // than 2h before phone-down -> outside the lookback; the other two (2 min each) count.
+        val events = use(0L) + use(90 * 60_000L) + use(150 * 60_000L) + fill(11 * H, 20 * H, 80L)
         val result = analyzer.analyze(events, anchors)
 
-        // phoneDownTime = end of the 3H use; only that use falls in the 2h lookback.
-        val expected = result.interactions.first { it.startMillis == 3 * H }.durationMillis
-        assertEquals(expected, result.preSleepPhoneTimeMillis)
+        assertEquals(152 * 60_000L, result.phoneDownTime)
+        assertEquals(4 * 60_000L, result.preSleepPhoneTimeMillis)
+    }
+
+    @Test
+    fun phoneDown_isBeforeTheShownWindow_notBeforeTheLongestBlock() {
+        // Evening uses until 22:22, sleep, a 2-min check at 03:00, sleep until 08:00. The second
+        // half is the longest block, but the shown window starts at 22:22 — so does phone-down.
+        val events = use(0L) + use(10 * 60_000L) + use(20 * 60_000L) + use(5 * H) + fill(10 * H, 20 * H, 80L)
+        val result = analyzer.analyze(events, anchors)
+
+        assertEquals(5 * H + 2 * 60_000L, result.primaryRest!!.block.startMillis) // longest = 2nd half
+        assertEquals(22 * 60_000L, result.mainRestEpisode!!.startMillis)
+        assertEquals(22 * 60_000L, result.phoneDownTime)
+        assertEquals(6 * 60_000L, result.preSleepPhoneTimeMillis) // the three evening uses
+    }
+
+    @Test
+    fun preSleepLookback_reachesBeforeWindowOpening() {
+        // Uses BEFORE the window opens (the collection lead) count toward the 2h before phone-down,
+        // but never become part of the night.
+        val events = use(-90 * 60_000L) + use(-60 * 60_000L) + use(-30 * 60_000L) +
+            use(10 * 60_000L) + fill(9 * H, 20 * H, 80L)
+        val result = analyzer.analyze(events, anchors)
+
+        assertTrue(result.interactions.all { it.startMillis >= 0L }) // nothing before the opening
+        assertEquals(12 * 60_000L, result.phoneDownTime)
+        assertEquals(8 * 60_000L, result.preSleepPhoneTimeMillis) // 4 uses x 2 min
+    }
+
+    @Test
+    fun useStraddlingWindowOpening_isClippedForTheNight() {
+        // An unlocked use from 5 min before the opening to 3 min after it.
+        val straddle = listOf(
+            RawScreenEvent(-5 * 60_000L, ScreenEventType.SCREEN_INTERACTIVE),
+            RawScreenEvent(-5 * 60_000L + 1_000L, ScreenEventType.KEYGUARD_HIDDEN),
+            RawScreenEvent(3 * 60_000L, ScreenEventType.SCREEN_NON_INTERACTIVE)
+        )
+        val result = analyzer.analyze(straddle + fill(9 * H, 20 * H, 80L), anchors)
+
+        val first = result.interactions.first()
+        assertEquals(0L, first.startMillis)
+        assertEquals(3 * 60_000L, first.endMillis)
+        assertEquals(3 * 60_000L, result.phoneDownTime)
+        assertEquals(8 * 60_000L, result.preSleepPhoneTimeMillis) // the whole use, before + after
+    }
+
+    @Test
+    fun useOnlyBeforeWindow_phoneDownStillUnknown() {
+        // Last use before the opening; the night starts at the opening -> phone-down is UNKNOWN.
+        val events = use(-30 * 60_000L) + fill(10 * H, 20 * H, 80L)
+        val result = analyzer.analyze(events, anchors)
+
+        assertEquals(0L, result.mainRestEpisode!!.startMillis)
+        assertNull(result.phoneDownTime)
+        assertNull(result.preSleepPhoneTimeMillis)
     }
 
     // ---- Future-window cap (nowMillis) ----------------------------------

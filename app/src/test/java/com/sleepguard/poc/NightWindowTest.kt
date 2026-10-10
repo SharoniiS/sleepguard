@@ -27,6 +27,14 @@ class NightWindowTest {
     }
 
     @Test
+    fun collectionStartsTwoHoursBeforeTheNight() {
+        val (start, end) = NightWindow.collectionRange(morning, zone, leadMinutes = 120L)
+
+        assertEquals(millis(2026, 10, 9, 16), start)
+        assertEquals(millis(2026, 10, 10, 18), end)
+    }
+
+    @Test
     fun consecutiveNightsTileWithNoGap() {
         val today = NightWindow.anchors(morning, zone)
         val yesterday = NightWindow.anchors(morning.minusDays(1), zone)

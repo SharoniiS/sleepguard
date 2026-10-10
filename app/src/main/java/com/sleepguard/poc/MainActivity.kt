@@ -156,7 +156,8 @@ class MainActivity : AppCompatActivity() {
     private fun anchorsForNight(morning: LocalDate): WindowAnchors = NightWindow.anchors(morning, zone)
 
     /** Capture window for the night whose morning is [morning] (shared with the product UI). */
-    private fun dayWindow(morning: LocalDate): Pair<Long, Long> = NightWindow.collectionRange(morning, zone)
+    private fun dayWindow(morning: LocalDate): Pair<Long, Long> =
+        NightWindow.collectionRange(morning, zone, analysisConfig.preSleepLookbackMinutes)
 
     // -----------------------------------------------------------------------
     // Actions

@@ -42,7 +42,10 @@ class NightPatternAnalyzer(private val config: AnalysisConfig = AnalysisConfig()
         val lockSignalsPresent = rawEvents.any {
             it.type == ScreenEventType.KEYGUARD_SHOWN || it.type == ScreenEventType.KEYGUARD_HIDDEN
         }
-        val interactions = buildRealUseInteractions(rawEvents, anchors, effectiveEnd, lockSignalsPresent)
+        // All REAL_USE, including the lead before the window opening (read only for preSleepPhoneTime).
+        val allInteractions = buildRealUseInteractions(rawEvents, effectiveEnd, lockSignalsPresent)
+        // REAL_USE inside the analysis window: everything else (quiet blocks, wake, flags) uses these.
+        val interactions = clipToWindow(allInteractions, anchors.windowStart)
         val quietBlocks = buildQuietBlocks(interactions, anchors, effectiveEnd)
 
         val sleepLike = quietBlocks.filter { it.isSleepLike }.sortedBy { it.startMillis }
@@ -107,10 +110,11 @@ class NightPatternAnalyzer(private val config: AnalysisConfig = AnalysisConfig()
             interactions.filter { it.startMillis >= me }.minByOrNull { it.startMillis }?.startMillis
         }
 
-        // --- phoneDownTime: end of the last REAL_USE before the primary block.
-        //     Null (UNKNOWN) when the window opened mid-sleep (no prior use). ---
-        val phoneDownTime: Long? = primary?.let { p ->
-            interactions.filter { it.endMillis <= p.startMillis }.maxOfOrNull { it.endMillis }
+        // --- phoneDownTime: end of the last REAL_USE (inside the window) before the main rest
+        //     episode starts — the shown sleep window, not the single longest block. Null (UNKNOWN)
+        //     when the episode starts at the window opening (no prior use in the window). ---
+        val phoneDownTime: Long? = mainStart?.let { start ->
+            interactions.filter { it.endMillis <= start }.maxOfOrNull { it.endMillis }
         }
 
         // --- WINDOW_OPENS_IN_QUIET: the opening edge gap is itself sleep-like. ---
@@ -118,10 +122,11 @@ class NightPatternAnalyzer(private val config: AnalysisConfig = AnalysisConfig()
         val openingGap = firstUseStart - anchors.windowStart
         val windowOpensInQuiet = openingGap >= config.windowOpensInQuietMinMinutes * MIN
 
-        // --- preSleepPhoneTime: REAL_USE time in the lookback before phone-down. ---
+        // --- preSleepPhoneTime: REAL_USE time in the lookback before phone-down. The lookback may
+        //     reach before the window opening (events are collected from windowStart - lookback). ---
         val preSleepPhoneTime: Long? = phoneDownTime?.let { down ->
-            val lookbackStart = max(down - config.preSleepLookbackMinutes * MIN, anchors.windowStart)
-            interactions.sumOf { i ->
+            val lookbackStart = down - config.preSleepLookbackMinutes * MIN
+            allInteractions.sumOf { i ->
                 val s = max(i.startMillis, lookbackStart)
                 val e = min(i.endMillis, down)
                 if (e > s) e - s else 0L
@@ -224,9 +229,9 @@ class NightPatternAnalyzer(private val config: AnalysisConfig = AnalysisConfig()
     // Step 1 — meaningful-interaction filter
     // -----------------------------------------------------------------------
 
+    /** All REAL_USE up to [effectiveEnd] — NOT clipped to the window opening (see [clipToWindow]). */
     private fun buildRealUseInteractions(
         rawEvents: List<RawScreenEvent>,
-        anchors: WindowAnchors,
         effectiveEnd: Long,
         lockSignalsPresent: Boolean
     ): List<MeaningfulInteraction> {
@@ -287,7 +292,7 @@ class NightPatternAnalyzer(private val config: AnalysisConfig = AnalysisConfig()
                 // screen — alarm, incoming call, notification — is never real use, however long.
                 // Fallback for phones with no lock events at all: the screen-on duration rule.
                 SessionClose.CLOSED_OFF -> {
-                    val start = max(s.start, anchors.windowStart)
+                    val start = s.start
                     val end = min(s.end, effectiveEnd)
                     val duration = end - start
                     if (duration <= 0L) continue
@@ -304,7 +309,7 @@ class NightPatternAnalyzer(private val config: AnalysisConfig = AnalysisConfig()
                 // unlock (e.g. next morning) is NOT swallowed (1a).
                 SessionClose.MISSED_OFF, SessionClose.OPEN_AT_END -> {
                     val point = s.start
-                    if (point < anchors.windowStart || point > effectiveEnd) continue
+                    if (point > effectiveEnd) continue
                     val wasUnlocked = keyguardHidden.any { it in point..(point + UNLOCK_ASSOC_WINDOW) } ||
                         stillUnlockedAt(point)
                     if (wasUnlocked) {
@@ -315,6 +320,18 @@ class NightPatternAnalyzer(private val config: AnalysisConfig = AnalysisConfig()
             }
         }
         return result.sortedBy { it.startMillis }
+    }
+
+    /** The REAL_USE inside the analysis window: a use straddling the opening is cut at it. */
+    private fun clipToWindow(
+        all: List<MeaningfulInteraction>,
+        windowStart: Long
+    ): List<MeaningfulInteraction> = all.mapNotNull { i ->
+        when {
+            i.startMillis >= windowStart -> i
+            i.endMillis > windowStart -> MeaningfulInteraction(windowStart, i.endMillis, i.endMillis - windowStart)
+            else -> null // entirely before the window (the lookback lead)
+        }
     }
 
     // -----------------------------------------------------------------------

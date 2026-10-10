@@ -121,7 +121,7 @@ class SleepViewModel(app: Application) : AndroidViewModel(app) {
         val complete = repo.loadAll().filter { isComplete(it) }.map { it.nightOf }.toSet()
         for (k in 0 until backfillLookbackDays) {
             val morning = today.minusDays(k.toLong())
-            val (start, end) = NightWindow.collectionRange(morning, zone)
+            val (start, end) = NightWindow.collectionRange(morning, zone, config.preSleepLookbackMinutes)
             val collection = runCatching { collector.collect(start, end) }.getOrNull() ?: continue
             if (collection.events.isEmpty()) continue
             if (morning.toString() in complete) continue
