@@ -15,7 +15,6 @@ import kotlinx.serialization.json.Json
 import java.io.File
 import java.time.Instant
 import java.time.LocalDate
-import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
@@ -30,9 +29,8 @@ import java.time.format.DateTimeFormatter
  *                  information" button reveals the technical section (per-night summary lines,
  *                  Backfill / Clear, technical counts), which is collapsed by default.
  *
- * Sleep is analyzed on the 22:00->18:00 window, but events are CAPTURED for a full 24h day
- * (so the log misses nothing). The analyzer ignores events outside its window, so the sleep
- * analysis is unaffected. On every open (when Usage Access is granted) Backfill probes the last
+ * Sleep is analyzed on the 18:00->18:00 window (see [NightWindow]), so consecutive nights tile
+ * with no gap. On every open (when Usage Access is granted) Backfill probes the last
  * backfillLookbackDays nights but stores only nights NOT already saved (capture-once): a night is
  * captured once when fresh and then frozen, so a later retention-degraded re-read can't overwrite a
  * good record. Clear wipes local storage for a fresh reseed. No background work.
@@ -154,27 +152,11 @@ class MainActivity : AppCompatActivity() {
     // Windows
     // -----------------------------------------------------------------------
 
-    /** Absolute epoch millis for [date] at [hour]:00 in the device timezone. */
-    private fun at(date: LocalDate, hour: Int): Long =
-        date.atTime(LocalTime.of(hour, 0)).atZone(zone).toInstant().toEpochMilli()
+    /** Sleep-analysis anchors for the night whose morning is [morning]: (m-1) 18:00 -> m 18:00. */
+    private fun anchorsForNight(morning: LocalDate): WindowAnchors = NightWindow.anchors(morning, zone)
 
-    /** Sleep-analysis anchors for the night whose morning is [morning]: (m-1) 22:00 -> m 18:00. */
-    private fun anchorsForNight(morning: LocalDate): WindowAnchors =
-        WindowAnchors(
-            windowStart = at(morning.minusDays(1), 22),
-            morningEarliest = at(morning, 4),
-            morningStart = at(morning, 6),
-            noon = at(morning, 12),
-            windowEnd = at(morning, 18)
-        )
-
-    /**
-     * Full-day capture window for the night whose morning is [morning]: (m-1) 18:00 -> m 18:00.
-     * 24h and contiguous across days, so the interaction log misses nothing. Sleep analysis still
-     * runs on the 22:00->18:00 slice (the analyzer ignores events outside its anchors).
-     */
-    private fun dayWindow(morning: LocalDate): Pair<Long, Long> =
-        at(morning.minusDays(1), 18) to at(morning, 18)
+    /** Capture window for the night whose morning is [morning] (shared with the product UI). */
+    private fun dayWindow(morning: LocalDate): Pair<Long, Long> = NightWindow.collectionRange(morning, zone)
 
     // -----------------------------------------------------------------------
     // Actions

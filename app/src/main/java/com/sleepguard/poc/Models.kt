@@ -27,7 +27,7 @@ data class RawScreenEvent(
 // SleepGuard MVP pattern analysis (NightPatternAnalyzer)
 //
 // All thresholds live in AnalysisConfig so they can be tuned without touching
-// logic. The absolute time boundaries of the official window (yesterday 22:00 ->
+// logic. The absolute time boundaries of the official window (yesterday 18:00 ->
 // today 18:00, plus the 04:00/06:00/12:00 anchors) live in WindowAnchors, which
 // is computed once per run from the device timezone and passed into the analyzer.
 // Keeping anchors out of the analyzer keeps it a pure, timezone-free function.
@@ -83,7 +83,7 @@ data class AnalysisConfig(
  * Using absolute timestamps (not hour-of-day) removes all across-midnight ambiguity.
  */
 data class WindowAnchors(
-    val windowStart: Long,     // yesterday 22:00
+    val windowStart: Long,     // yesterday 18:00 (see NightWindow)
     val morningEarliest: Long, // today 04:00  (DELAYED earliest start)
     val morningStart: Long,    // today 06:00  (MORNING_RECOVERY earliest start)
     val noon: Long,            // today 12:00  (DELAYED latest start / DAYTIME_RECOVERY start)

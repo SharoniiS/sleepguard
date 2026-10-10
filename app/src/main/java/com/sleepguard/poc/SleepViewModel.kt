@@ -11,7 +11,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDate
-import java.time.LocalTime
 import java.time.ZoneId
 
 /**
@@ -102,20 +101,6 @@ class SleepViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---- collection (ported from MainActivity; see class note) ----
 
-    private fun at(date: LocalDate, hour: Int): Long =
-        date.atTime(LocalTime.of(hour, 0)).atZone(zone).toInstant().toEpochMilli()
-
-    private fun anchorsForNight(morning: LocalDate) = WindowAnchors(
-        windowStart = at(morning.minusDays(1), 22),
-        morningEarliest = at(morning, 4),
-        morningStart = at(morning, 6),
-        noon = at(morning, 12),
-        windowEnd = at(morning, 18)
-    )
-
-    private fun dayWindow(morning: LocalDate): Pair<Long, Long> =
-        at(morning.minusDays(1), 18) to at(morning, 18)
-
     private fun isComplete(r: NightRecord): Boolean = r.collectedAtMillis >= r.windowEndMillis
 
     /** Collect the rolling last-24h window [now-24h, now] on demand. Independent of the nightly
@@ -136,12 +121,12 @@ class SleepViewModel(app: Application) : AndroidViewModel(app) {
         val complete = repo.loadAll().filter { isComplete(it) }.map { it.nightOf }.toSet()
         for (k in 0 until backfillLookbackDays) {
             val morning = today.minusDays(k.toLong())
-            val (start, end) = dayWindow(morning)
+            val (start, end) = NightWindow.collectionRange(morning, zone)
             val collection = runCatching { collector.collect(start, end) }.getOrNull() ?: continue
             if (collection.events.isEmpty()) continue
             if (morning.toString() in complete) continue
             val now = Instant.now().toEpochMilli()
-            val result = analyzer.analyze(collection.events, anchorsForNight(morning), now)
+            val result = analyzer.analyze(collection.events, NightWindow.anchors(morning, zone), now)
             repo.upsert(
                 NightRecordMapper.toRecord(
                     result, collection.events, collection.rawEventCount, morning.toString(), now, config

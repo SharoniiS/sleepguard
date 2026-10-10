@@ -9,7 +9,7 @@ const val ANALYZER_VERSION = "1.1.0"
 /**
  * SleepGuard MVP analyzer.
  *
- * Turns raw screen/lock events from the official window (yesterday 22:00 ->
+ * Turns raw screen/lock events from the official window (yesterday 18:00 ->
  * today 18:00) into a flexible "pattern around sleep" picture that tolerates
  * broken, late, inverted, and white-night sleep — without ever claiming the user
  * "slept". It only reports *possible sleep-like quiet periods* and device activity.
