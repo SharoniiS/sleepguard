@@ -1,8 +1,11 @@
 package com.sleepguard.poc
 
+import android.graphics.Color
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -27,6 +30,13 @@ class AppActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // The Compose UI is always dark (SleepGuardTheme), so keep the system-bar icons light in both
+        // device light and dark mode. Also draws edge-to-edge on Android 9–14, matching what
+        // targetSdk 35+ already enforces on Android 15+ (Scaffold applies the bar insets).
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT)
+        )
         setContent {
             SleepGuardTheme {
                 var ready by remember { mutableStateOf(false) }
