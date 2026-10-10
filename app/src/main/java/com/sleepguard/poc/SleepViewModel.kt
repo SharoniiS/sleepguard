@@ -101,8 +101,6 @@ class SleepViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---- collection (ported from MainActivity; see class note) ----
 
-    private fun isComplete(r: NightRecord): Boolean = r.collectedAtMillis >= r.windowEndMillis
-
     /** Collect the rolling last-24h window [now-24h, now] on demand. Independent of the nightly
      *  backfill and NOT persisted — feeds the Home "last 24 hours" card. */
     private fun collectLast24h(): Last24hActivity {
@@ -116,21 +114,26 @@ class SleepViewModel(app: Application) : AndroidViewModel(app) {
         )
     }
 
+    /** (Re)analyze the recent nights that need it — see [BackfillPolicy.needsAnalysis]. */
     private fun collectBackfill() {
         val today = LocalDate.now(zone)
-        val complete = repo.loadAll().filter { isComplete(it) }.map { it.nightOf }.toSet()
+        val stored = repo.loadAll().associateBy { it.nightOf }
         for (k in 0 until backfillLookbackDays) {
             val morning = today.minusDays(k.toLong())
+            val existing = stored[morning.toString()]
+            if (!BackfillPolicy.needsAnalysis(existing)) continue
+            val anchors = NightWindow.anchors(morning, zone)
             val (start, end) = NightWindow.collectionRange(morning, zone, config.preSleepLookbackMinutes)
             val collection = runCatching { collector.collect(start, end) }.getOrNull() ?: continue
-            if (collection.events.isEmpty()) continue
-            if (morning.toString() in complete) continue
+            // Retention guard: re-analyze the stored events if the fresh read came back thinner.
+            val keepStored = existing?.takeIf { BackfillPolicy.preferStoredEvents(collection.events, it, anchors) }
+            val events = keepStored?.let { BackfillPolicy.toRawEvents(it.events) } ?: collection.events
+            if (events.isEmpty()) continue
+            val rawEventCount = keepStored?.rawEventCount ?: collection.rawEventCount
             val now = Instant.now().toEpochMilli()
-            val result = analyzer.analyze(collection.events, NightWindow.anchors(morning, zone), now)
+            val result = analyzer.analyze(events, anchors, now)
             repo.upsert(
-                NightRecordMapper.toRecord(
-                    result, collection.events, collection.rawEventCount, morning.toString(), now, config
-                )
+                NightRecordMapper.toRecord(result, events, rawEventCount, morning.toString(), now, config)
             )
         }
     }
