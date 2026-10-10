@@ -78,6 +78,11 @@ android {
     }
 }
 
+ksp {
+    // Room exports each DB version's schema JSON here (see AppDatabase). Commit app/schemas/.
+    arg("room.schemaLocation", "$projectDir/schemas")
+}
+
 dependencies {
     implementation 'androidx.core:core-ktx:1.13.1'
     implementation 'androidx.appcompat:appcompat:1.7.0'

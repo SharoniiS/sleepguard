@@ -13,9 +13,11 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  * Tables:
  *  - `nights`           — the analysis layer ([NightEntity]).
  *  - `morning_reports`  — the per-night user self-report layer ([MorningReportEntity]).
+ *  - `medications`      — the user's reusable medication names ([MedicationEntity]).
  *
- * `exportSchema = false`; schema changes are handled with explicit [Migration]s (below). If schema
- * history tracking is wanted later, turn exportSchema on + set `room.schemaLocation`.
+ * `exportSchema = true`: Room writes each version's schema JSON to `app/schemas/` (path set by the
+ * `room.schemaLocation` KSP arg in app/build.gradle). Commit those files — v3 is the shape that ships
+ * to real users, and future [Migration]s (below) must be reviewed and tested against it.
  *
  * `allowMainThreadQueries()` is a TEMPORARY drop-in shim (the data set is tiny); the UI track will
  * move reads to Flow / coroutines and remove it.
@@ -23,7 +25,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 @Database(
     entities = [NightEntity::class, MorningReportEntity::class, MedicationEntity::class],
     version = 3,
-    exportSchema = false
+    exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
 
