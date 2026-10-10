@@ -6,6 +6,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -52,6 +54,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.sleepguard.poc.Last24hActivity
 import com.sleepguard.poc.NightRecord
 import com.sleepguard.poc.SleepViewModel
 import java.time.DayOfWeek
@@ -99,11 +102,9 @@ fun SleepApp(vm: SleepViewModel, onOpenSettings: () -> Unit) {
         Box(Modifier.fillMaxSize().padding(inset)) {
             when {
                 !vm.hasPermission -> Padded { NeedPermission(onOpenSettings) }
-                vm.nights.isEmpty() ->
-                    Padded { CenteredMessage("אין עדיין נתונים. פִּתחי את האפליקציה בבוקר אחרי לילה.") }
                 else -> when (val d = current) {
                     is Dest.TabDest -> when (d.tab) {
-                        Tab.HOME -> Padded { HomeScreen(vm.latestComplete) }
+                        Tab.HOME -> Padded { HomeScreen(vm.latestComplete, vm.last24h) }
                         Tab.HISTORY -> Padded { HistoryScreen(vm.nights) { stack.add(Dest.Report(it)) } }
                         Tab.MORE -> Padded { MoreInfoScreen() }
                         Tab.LAST -> {
@@ -165,58 +166,160 @@ private fun CenteredMessage(text: String) {
 // ---------------------------------------------------------------- Home
 
 @Composable
-private fun HomeScreen(latest: NightRecord?) {
-    if (latest == null) {
-        CenteredMessage("אין עדיין לילה שלם להצגה.")
-        return
-    }
-    val q = quiet(latest)
+private fun HomeScreen(latest: NightRecord?, last24h: Last24hActivity?) {
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        HeroBanner("בית", subtitle = dateWithDay(latest.nightOf))
+        HeroBanner("בית", subtitle = latest?.let { dateWithDay(it.nightOf) })
         Spacer(Modifier.height(16.dp))
 
-        // Main summary card
-        Column(
-            Modifier.fillMaxWidth()
-                .clip(RoundedCornerShape(20.dp))
-                .background(Brush.verticalGradient(listOf(Color(0xFF1B2350), Color(0xFF0E1430))))
-                .border(1.dp, Color(0x143D74FF), RoundedCornerShape(20.dp))
-                .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Box(
-                Modifier.size(56.dp).clip(RoundedCornerShape(16.dp)).background(Color(0x143D74FF)),
-                contentAlignment = Alignment.Center
-            ) { Text("🌙", fontSize = 24.sp) }
+        // Last 24 hours — a live, descriptive snapshot. Available even before any night is stored.
+        Last24hCard(last24h)
+        Spacer(Modifier.height(16.dp))
+
+        if (latest != null) {
+            val q = quiet(latest)
+            // Main summary card
+            Column(
+                Modifier.fillMaxWidth()
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Brush.verticalGradient(listOf(Color(0xFF1B2350), Color(0xFF0E1430))))
+                    .border(1.dp, Color(0x143D74FF), RoundedCornerShape(20.dp))
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Ltr {
+                    Text(
+                        if (q != null) "${fmt(q.first)} – ${fmt(q.second)}" else "—",
+                        fontFamily = Rubik, fontSize = 34.sp, fontWeight = FontWeight.Bold
+                    )
+                }
+                Text("חלון חוסר פעילות", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(18.dp))
+                Text(if (q != null) dur(q.third) else "—", fontFamily = Rubik, fontSize = 32.sp, fontWeight = FontWeight.Bold)
+                Text("משך חוסר הפעילות", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(16.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Chip(availabilityHe(latest.confidence))
+                    Chip(patternHe(latest.restPattern))
+                }
+            }
+
             Spacer(Modifier.height(14.dp))
-            Ltr {
-                Text(
-                    if (q != null) "${fmt(q.first)} – ${fmt(q.second)}" else "—",
-                    fontFamily = Rubik, fontSize = 34.sp, fontWeight = FontWeight.Bold
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                StatCard(Modifier.weight(1f), "הפרעות",
+                    if (latest.awakenings.isEmpty()) "ללא" else latest.awakenings.size.toString())
+                StatCard(Modifier.weight(1f), "שימוש לפני חוסר הפעילות",
+                    latest.preSleepPhoneTimeMillis?.let { "${it / 60000} דק'" } ?: "לא ידוע")
+            }
+        } else {
+            Text(
+                "אין עדיין לילה שלם להצגה.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+        }
+        Spacer(Modifier.height(16.dp))
+    }
+}
+
+// ---------------------------------------------------------------- Last 24 hours (descriptive only)
+
+/** Rolling last-24h activity: an event tick strip + the shared filterable raw log. No analysis. */
+@Composable
+private fun Last24hCard(data: Last24hActivity?) {
+    Column(
+        Modifier.fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(Brush.verticalGradient(listOf(Color(0xFF161C3A), Color(0xFF0F1430))))
+            .border(1.dp, Color(0x143D74FF), RoundedCornerShape(20.dp))
+            .padding(20.dp)
+    ) {
+        Text("24 השעות האחרונות", fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(4.dp))
+        Text("פעילות הטלפון עד לרגע זה.", fontSize = 12.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(14.dp))
+        if (data == null || data.events.isEmpty()) {
+            Text("אין פעילות ב-24 השעות האחרונות.", fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+        } else {
+            ActivityStrip(data)
+            Spacer(Modifier.height(14.dp))
+            RawActivityLog(data.events)
+        }
+    }
+}
+
+/** A clean 24h activity band: screen-on spans shaded on a rounded track, styled like the report
+ *  timeline. Descriptive only — the fill marks when the screen was on, no analysis. */
+@Composable
+private fun ActivityStrip(data: Last24hActivity) {
+    val span = (data.endMillis - data.startMillis).coerceAtLeast(1L).toFloat()
+    val spans = screenOnSpans(data)
+    Column {
+        BoxWithConstraints(
+            Modifier.fillMaxWidth().height(14.dp)
+                .clip(RoundedCornerShape(7.dp))
+                .background(Color(0xFF0C1124))
+        ) {
+            val trackWidth = maxWidth
+            spans.forEach { (s, e) ->
+                val startF = ((s - data.startMillis).toFloat() / span).coerceIn(0f, 1f)
+                val widthF = ((e - s).toFloat() / span).coerceIn(0f, 1f)
+                Box(
+                    Modifier.offset(x = trackWidth * startF)
+                        .width((trackWidth * widthF).coerceAtLeast(2.dp))
+                        .fillMaxHeight()
+                        .clip(RoundedCornerShape(7.dp))
+                        .background(
+                            Brush.horizontalGradient(
+                                listOf(Color(0x593D74FF), Color(0x8C3D74FF), Color(0x593D74FF))
+                            )
+                        )
                 )
             }
-            Text("חלון חוסר פעילות", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(18.dp))
-            Text(if (q != null) dur(q.third) else "—", fontFamily = Rubik, fontSize = 32.sp, fontWeight = FontWeight.Bold)
-            Text("משך חוסר הפעילות", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(16.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Chip(availabilityHe(latest.confidence))
-                Chip(patternHe(latest.restPattern))
+        }
+        Spacer(Modifier.height(6.dp))
+        Ltr {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(fmt(data.startMillis), fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(fmt(data.endMillis), fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-
-        Spacer(Modifier.height(14.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            StatCard(Modifier.weight(1f), "הפרעות",
-                if (latest.awakenings.isEmpty()) "ללא" else latest.awakenings.size.toString())
-            StatCard(Modifier.weight(1f), "שימוש לפני חוסר הפעילות",
-                latest.preSleepPhoneTimeMillis?.let { "${it / 60000} דק'" } ?: "לא ידוע")
+        Spacer(Modifier.height(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            StripLegend(SgPrimary, "פעילות")
         }
-        Spacer(Modifier.height(16.dp))
+    }
+}
+
+/** Screen-on intervals derived from raw events (interactive -> next non-interactive), for the band.
+ *  Pure and descriptive: no thresholds, no sleep inference. Events arrive sorted by timestamp. */
+private fun screenOnSpans(data: Last24hActivity): List<Pair<Long, Long>> {
+    val spans = mutableListOf<Pair<Long, Long>>()
+    var onAt: Long? = null
+    data.events.forEach { e ->
+        when (e.type) {
+            "SCREEN_INTERACTIVE" -> if (onAt == null) onAt = e.timestampMillis
+            "SCREEN_NON_INTERACTIVE" -> onAt?.let { spans.add(it to e.timestampMillis); onAt = null }
+        }
+    }
+    onAt?.let { spans.add(it to data.endMillis) }   // still on at 'now'
+    return spans
+}
+
+@Composable
+private fun StripLegend(color: Color, label: String) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Box(Modifier.size(8.dp).clip(CircleShape).background(color))
+        Text(label, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -226,7 +329,14 @@ private fun HomeScreen(latest: NightRecord?) {
 private fun HistoryScreen(nights: List<NightRecord>, onOpen: (NightRecord) -> Unit) {
     LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { HeroBanner("היסטוריה") }
-        items(nights) { n -> HistoryRow(n) { onOpen(n) } }
+        if (nights.isEmpty()) {
+            item {
+                Text("אין עדיין לילות שמורים.", color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+            }
+        } else {
+            items(nights) { n -> HistoryRow(n) { onOpen(n) } }
+        }
     }
 }
 
