@@ -33,10 +33,14 @@
             </intent-filter>
         </activity>
 
-        <!-- Legacy View-based POC, kept for debug (no longer the launcher). Reachable via adb:
-             adb shell am start -n com.sleepguard.app/com.sleepguard.poc.MainActivity -->
+        <!-- Legacy View-based POC, kept for debug (no longer the launcher). Reachable via adb in
+             DEBUG builds only:
+             adb shell am start -n com.sleepguard.app/com.sleepguard.poc.MainActivity
+             Release builds ship it disabled (debugScreenEnabled=false in app/build.gradle), so no app
+             can open its Clear / Export actions in the store build. -->
         <activity
             android:name=".MainActivity"
+            android:enabled="${debugScreenEnabled}"
             android:exported="true" />
 
         <!-- Lets the "Export backup" action share a temp JSON file from cacheDir via a content URI
