@@ -50,7 +50,7 @@ object NightRecordMapper {
 
     private fun toStoredConfig(c: AnalysisConfig): StoredConfig = StoredConfig(
         meaningfulMinScreenOnSeconds = c.meaningfulMinScreenOnSeconds,
-        treatUnlockAsMeaningful = c.treatUnlockAsMeaningful,
+        treatUnlockAsMeaningful = true, // since 1.1.0 an unlock is always the real-use signal
         microQuietMinMinutes = c.microQuietMinMinutes,
         shortSleepMinMinutes = c.shortSleepMinMinutes,
         mainSleepMinMinutes = c.mainSleepMinMinutes,
@@ -58,6 +58,7 @@ object NightRecordMapper {
         recoveryMinMinutes = c.recoveryMinMinutes,
         preSleepLookbackMinutes = c.preSleepLookbackMinutes,
         awakeningMaxMinutes = c.awakeningMaxMinutes,
-        windowOpensInQuietMinMinutes = c.windowOpensInQuietMinMinutes
+        windowOpensInQuietMinMinutes = c.windowOpensInQuietMinMinutes,
+        unlockCarryOverMinutes = c.unlockCarryOverMinutes
     )
 }

@@ -38,10 +38,20 @@ data class RawScreenEvent(
  * the name says otherwise. Defaults are the approved SleepGuard MVP values.
  */
 data class AnalysisConfig(
-    /** A session counts as "real use" if screen-on lasted at least this long... */
+    /**
+     * FALLBACK ONLY. A screen-on counts as "real use" only while the phone is unlocked (see
+     * [unlockCarryOverMinutes]); a lit but locked screen (alarm, incoming call, notification) never
+     * does. When the input has NO lock/unlock events at all (a phone without a lock screen), that
+     * rule cannot work, so a screen-on lasting at least this long counts instead.
+     */
     val meaningfulMinScreenOnSeconds: Long = 60L,
-    /** ...OR (when true) the device was unlocked (KEYGUARD_HIDDEN) during it. */
-    val treatUnlockAsMeaningful: Boolean = true,
+    /**
+     * A screen-on with no unlock of its own still counts as real use when the phone is still
+     * unlocked from before (no lock event since the last unlock) — e.g. the "lock after X minutes"
+     * setting — but for at most this long since the screen went off / the unlock, in case a lock
+     * event was missed.
+     */
+    val unlockCarryOverMinutes: Long = 30L,
 
     val microQuietMinMinutes: Long = 20L,      // 20–90 min  -> MICRO_QUIET_BLOCK
     val shortSleepMinMinutes: Long = 90L,      // 90 min–4h  -> SHORT_SLEEP_LIKE_BLOCK
@@ -114,7 +124,9 @@ enum class AnalysisFlag {
     NO_MORNING_INTERACTION,
     ACTIVE_NIGHT,
     DELAYED_PRIMARY_SLEEP,
-    MULTIPLE_SLEEP_BLOCKS
+    MULTIPLE_SLEEP_BLOCKS,
+    /** No lock/unlock events at all: real use fell back to the screen-on duration rule. */
+    NO_LOCK_EVENTS
 }
 
 // ---------------------------------------------------------------------------

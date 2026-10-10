@@ -4,7 +4,7 @@ import kotlin.math.max
 import kotlin.math.min
 
 /** Identifies which analyzer logic produced a stored record (for future re-analysis). */
-const val ANALYZER_VERSION = "1.0.0-phase1"
+const val ANALYZER_VERSION = "1.1.0"
 
 /**
  * SleepGuard MVP analyzer.
@@ -37,7 +37,12 @@ class NightPatternAnalyzer(private val config: AnalysisConfig = AnalysisConfig()
     ): NightPatternResult {
         // Cap the data end at the collection moment: nothing in the future is analyzed.
         val effectiveEnd = min(anchors.windowEnd, nowMillis)
-        val interactions = buildRealUseInteractions(rawEvents, anchors, effectiveEnd)
+        // Lock/unlock events are the real-use signal. A window with none at all (no lock screen)
+        // falls back to the screen-on duration rule — otherwise the whole day would read as sleep.
+        val lockSignalsPresent = rawEvents.any {
+            it.type == ScreenEventType.KEYGUARD_SHOWN || it.type == ScreenEventType.KEYGUARD_HIDDEN
+        }
+        val interactions = buildRealUseInteractions(rawEvents, anchors, effectiveEnd, lockSignalsPresent)
         val quietBlocks = buildQuietBlocks(interactions, anchors, effectiveEnd)
 
         val sleepLike = quietBlocks.filter { it.isSleepLike }.sortedBy { it.startMillis }
@@ -129,6 +134,8 @@ class NightPatternAnalyzer(private val config: AnalysisConfig = AnalysisConfig()
         if (sleepLike.size >= 2) flags.add(AnalysisFlag.MULTIPLE_SLEEP_BLOCKS)
         if (nightPattern == NightPattern.ACTIVE_NIGHT) flags.add(AnalysisFlag.ACTIVE_NIGHT)
         if (primary?.label == QuietBlockLabel.DELAYED_SLEEP_LIKE) flags.add(AnalysisFlag.DELAYED_PRIMARY_SLEEP)
+        val hasScreenEvents = rawEvents.any { it.type == ScreenEventType.SCREEN_INTERACTIVE }
+        if (hasScreenEvents && !lockSignalsPresent) flags.add(AnalysisFlag.NO_LOCK_EVENTS)
 
         // --- Confidence (§8): measurement certainty of the sleep claim. ---
         val confidence = when {
@@ -195,12 +202,30 @@ class NightPatternAnalyzer(private val config: AnalysisConfig = AnalysisConfig()
     private fun buildRealUseInteractions(
         rawEvents: List<RawScreenEvent>,
         anchors: WindowAnchors,
-        effectiveEnd: Long
+        effectiveEnd: Long,
+        lockSignalsPresent: Boolean
     ): List<MeaningfulInteraction> {
         val events = rawEvents.sortedBy { it.timestampMillis }
         val keyguardHidden = events
             .filter { it.type == ScreenEventType.KEYGUARD_HIDDEN }
             .map { it.timestampMillis }
+        val keyguardEvents = events.filter {
+            it.type == ScreenEventType.KEYGUARD_SHOWN || it.type == ScreenEventType.KEYGUARD_HIDDEN
+        }
+        val screenOffs = events
+            .filter { it.type == ScreenEventType.SCREEN_NON_INTERACTIVE }
+            .map { it.timestampMillis }
+        val carryOverMillis = config.unlockCarryOverMinutes * MIN
+
+        // Was the phone still unlocked when the screen turned on at [t]? True when the last lock
+        // event before [t] is an unlock (no KEYGUARD_SHOWN since), and the phone has not sat
+        // unlocked-but-idle for longer than the carry-over limit (guards against a missed lock event).
+        fun stillUnlockedAt(t: Long): Boolean {
+            val last = keyguardEvents.lastOrNull { it.timestampMillis <= t } ?: return false
+            if (last.type != ScreenEventType.KEYGUARD_HIDDEN) return false
+            val lastOff = screenOffs.lastOrNull { it <= t } ?: Long.MIN_VALUE
+            return t - max(last.timestampMillis, lastOff) <= carryOverMillis
+        }
 
         // Pair SCREEN_INTERACTIVE -> next SCREEN_NON_INTERACTIVE into raw sessions, tracking HOW
         // each session closed. A SCREEN_INTERACTIVE that never sees its own SCREEN_NON_INTERACTIVE
@@ -232,25 +257,32 @@ class NightPatternAnalyzer(private val config: AnalysisConfig = AnalysisConfig()
         val result = mutableListOf<MeaningfulInteraction>()
         for (s in sessions) {
             when (s.close) {
-                // Properly closed session: the on-duration is trustworthy -> original rule unchanged.
+                // Properly closed session. Real use = the phone was unlocked while the screen was on
+                // (an unlock during the session, or still unlocked from before). A lit but LOCKED
+                // screen — alarm, incoming call, notification — is never real use, however long.
+                // Fallback for phones with no lock events at all: the screen-on duration rule.
                 SessionClose.CLOSED_OFF -> {
                     val start = max(s.start, anchors.windowStart)
                     val end = min(s.end, effectiveEnd)
                     val duration = end - start
                     if (duration <= 0L) continue
-                    val wasUnlocked = keyguardHidden.any { it in s.start..s.end }
-                    val isRealUse =
-                        (config.treatUnlockAsMeaningful && wasUnlocked) || duration >= minOnMillis
+                    val isRealUse = if (lockSignalsPresent) {
+                        keyguardHidden.any { it in s.start..s.end } || stillUnlockedAt(s.start)
+                    } else {
+                        duration >= minOnMillis
+                    }
                     if (isRealUse) result.add(MeaningfulInteraction(start, end, duration))
                 }
                 // Unknown on-duration: a screen-on we never saw close cannot count as real use by
-                // duration. Only a genuine unlock NEAR ITS START makes it meaningful — and the unlock
-                // search is bounded so a far-away unlock (e.g. next morning) is NOT swallowed (1a).
+                // duration. Only a genuine unlock NEAR ITS START (or a phone still unlocked from
+                // before) makes it meaningful — and the unlock search is bounded so a far-away
+                // unlock (e.g. next morning) is NOT swallowed (1a).
                 SessionClose.MISSED_OFF, SessionClose.OPEN_AT_END -> {
                     val point = s.start
                     if (point < anchors.windowStart || point > effectiveEnd) continue
-                    val wasUnlocked = keyguardHidden.any { it in point..(point + UNLOCK_ASSOC_WINDOW) }
-                    if (config.treatUnlockAsMeaningful && wasUnlocked) {
+                    val wasUnlocked = keyguardHidden.any { it in point..(point + UNLOCK_ASSOC_WINDOW) } ||
+                        stillUnlockedAt(point)
+                    if (wasUnlocked) {
                         result.add(MeaningfulInteraction(point, point, 0L)) // duration unknown -> a point
                     }
                     // Otherwise a passive unclosed blip: dropped, must NOT break a quiet period.

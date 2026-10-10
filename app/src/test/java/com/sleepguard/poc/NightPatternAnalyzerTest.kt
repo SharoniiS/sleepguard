@@ -112,18 +112,101 @@ class NightPatternAnalyzerTest {
         assertTrue(result.quietBlocks.any { it.startMillis <= 5 * H && it.endMillis >= 5 * H && it.isSleepLike })
     }
 
-    @Test
-    fun meaningfulThresholdIsConfigurable() {
-        val glow = listOf(
-            RawScreenEvent(5 * H, ScreenEventType.SCREEN_INTERACTIVE),
-            RawScreenEvent(5 * H + 30_000L, ScreenEventType.SCREEN_NON_INTERACTIVE)
-        )
-        val events = use(10 * 60_000L) + glow + use(9 * H)
-        // Lower the threshold to 10s: the 30s glow now counts as real use.
-        val result = NightPatternAnalyzer(AnalysisConfig(meaningfulMinScreenOnSeconds = 10L))
-            .analyze(events, anchors)
+    // ---- 1.1.0: only an UNLOCKED phone is real use ----------------------
 
-        assertEquals(3, result.interactions.size)
+    /** A screen-on of [durSeconds] with NO unlock (alarm / incoming call / notification). */
+    private fun locked(start: Long, durSeconds: Long): List<RawScreenEvent> = listOf(
+        RawScreenEvent(start, ScreenEventType.SCREEN_INTERACTIVE),
+        RawScreenEvent(start + durSeconds * 1_000L, ScreenEventType.SCREEN_NON_INTERACTIVE)
+    )
+
+    @Test
+    fun longLockedScreenOn_isNotRealUse() {
+        // A 5-minute lit-but-locked screen at 03:00 (e.g. a ringing call) must not break sleep.
+        val events = use(10 * 60_000L) + locked(5 * H, 300L) + fill(9 * H, 20 * H, 80L)
+        val result = analyzer.analyze(events, anchors)
+
+        assertFalse(result.interactions.any { it.startMillis == 5 * H })
+        assertTrue(result.quietBlocks.any { it.startMillis <= 5 * H && it.endMillis >= 5 * H && it.isSleepLike })
+        assertTrue(result.nighttimeAwakenings.isEmpty())
+    }
+
+    @Test
+    fun alarmRingingLocked_doesNotEndSleep() {
+        // Alarm at 06:30 rings 3 min with no unlock; the real wake (unlock) is 08:00.
+        val alarm = 8 * H + 30 * 60_000L
+        val events = use(10 * 60_000L) + locked(alarm, 180L) + fill(10 * H, 20 * H, 80L)
+        val result = analyzer.analyze(events, anchors)
+
+        assertEquals(10 * H, result.mainRestEpisode!!.endMillis)
+        assertEquals(10 * H, result.firstUseAfterMainRest)
+    }
+
+    @Test
+    fun screenOnWhilePhoneStillUnlocked_isRealUse() {
+        // Unlocked use at 03:00 (screen off 03:02, no lock event: "lock after X min" setting),
+        // screen back on at 03:05 for 20 min WITHOUT a new unlock -> the phone was still unlocked.
+        val again = 5 * H + 5 * 60_000L
+        val events = use(10 * 60_000L) + use(5 * H) + locked(again, 1200L) + fill(9 * H, 20 * H, 80L)
+        val result = analyzer.analyze(events, anchors)
+
+        assertTrue(result.interactions.any { it.startMillis == again })
+    }
+
+    @Test
+    fun lockEventInBetween_nextScreenOnIsLocked() {
+        // Same as above, but the phone locked (KEYGUARD_SHOWN) when the screen went off at 03:02.
+        val again = 5 * H + 5 * 60_000L
+        val events = use(10 * 60_000L) + use(5 * H) +
+            listOf(RawScreenEvent(5 * H + 120_000L, ScreenEventType.KEYGUARD_SHOWN)) +
+            locked(again, 1200L) + fill(9 * H, 20 * H, 80L)
+        val result = analyzer.analyze(events, anchors)
+
+        assertFalse(result.interactions.any { it.startMillis == again })
+    }
+
+    @Test
+    fun stillUnlockedCarryOver_expiresAfterLimit() {
+        // No lock event recorded, but the screen comes back 45 min after the last use (> 30 min
+        // carry-over) with no unlock -> treated as locked (a lock event was probably missed).
+        val later = 5 * H + 47 * 60_000L
+        val events = use(10 * 60_000L) + use(5 * H) + locked(later, 300L) + fill(9 * H, 20 * H, 80L)
+        val result = analyzer.analyze(events, anchors)
+
+        assertFalse(result.interactions.any { it.startMillis == later })
+    }
+
+    @Test
+    fun unlockLoggedJustBeforeScreenOn_stillCounts() {
+        // Fingerprint/face unlock can be logged a few ms BEFORE the screen-on event.
+        val t = 5 * H
+        val events = use(10 * 60_000L) +
+            listOf(RawScreenEvent(t - 5L, ScreenEventType.KEYGUARD_HIDDEN)) +
+            locked(t, 120L) + fill(9 * H, 20 * H, 80L)
+        val result = analyzer.analyze(events, anchors)
+
+        assertTrue(result.interactions.any { it.startMillis == t })
+    }
+
+    @Test
+    fun noLockEventsAtAll_fallsBackToDurationRule() {
+        // A phone with no lock screen logs no lock/unlock events: then a screen-on >= 60s counts
+        // (configurable), a shorter one does not, and the record is flagged.
+        val events = locked(10 * 60_000L, 120L) + locked(5 * H, 30L) + locked(9 * H, 120L)
+        val result = analyzer.analyze(events, anchors)
+
+        assertEquals(2, result.interactions.size) // the 30s glow at 03:00 is dropped
+        assertTrue(result.flags.contains(AnalysisFlag.NO_LOCK_EVENTS))
+        // The fallback threshold is configurable: at 10s the 30s glow counts too.
+        val lowered = NightPatternAnalyzer(AnalysisConfig(meaningfulMinScreenOnSeconds = 10L))
+            .analyze(events, anchors)
+        assertEquals(3, lowered.interactions.size)
+    }
+
+    @Test
+    fun lockEventsPresent_noNoLockFlag() {
+        val result = analyzer.analyze(use(10 * 60_000L) + fill(9 * H, 20 * H, 80L), anchors)
+        assertFalse(result.flags.contains(AnalysisFlag.NO_LOCK_EVENTS))
     }
 
     // ---- WINDOW_OPENS_IN_QUIET (req #4) ---------------------------------

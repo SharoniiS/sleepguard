@@ -24,8 +24,10 @@ import kotlinx.serialization.Serializable
  * v2 (0.3): added nullable [NightRecord.mainRestEpisode] + [NightRecord.firstUseAfterMainRestMillis].
  * Non-destructive: both fields default to null, so v1 records still deserialize, and
  * [NightRepository.loadAll] does not gate on this version (nothing is dropped).
+ * v3 (analyzer 1.1.0): added nullable threshold fields to [StoredConfig] (default null, so v1/v2
+ * records still deserialize).
  */
-const val STORAGE_SCHEMA_VERSION = 2
+const val STORAGE_SCHEMA_VERSION = 3
 
 @Serializable
 data class NightRecord(
@@ -89,6 +91,7 @@ data class StoredEvent(
 @Serializable
 data class StoredConfig(
     val meaningfulMinScreenOnSeconds: Long,
+    /** Pre-1.1.0 toggle; since 1.1.0 an unlock is always the real-use signal, so always true. */
     val treatUnlockAsMeaningful: Boolean,
     val microQuietMinMinutes: Long,
     val shortSleepMinMinutes: Long,
@@ -97,5 +100,7 @@ data class StoredConfig(
     val recoveryMinMinutes: Long,
     val preSleepLookbackMinutes: Long,
     val awakeningMaxMinutes: Long,
-    val windowOpensInQuietMinMinutes: Long
+    val windowOpensInQuietMinMinutes: Long,
+    // --- v3 (analyzer 1.1.0): null on records produced before these thresholds existed ---
+    val unlockCarryOverMinutes: Long? = null
 )
