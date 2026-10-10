@@ -72,7 +72,11 @@ data class StoredBlock(
     val label: String                 // QuietBlockLabel.name (both models coexist for now)
 )
 
-/** 0.3: the bridged main sleep episode (primary block extended across short interruptions). */
+/**
+ * 0.3: the bridged main sleep episode (primary block extended across interruptions).
+ * [durationMillis]: since analyzer 1.1.0 the NET rest time (span minus the interruptions inside it);
+ * records from older analyzer versions hold the plain span (end - start).
+ */
 @Serializable
 data class StoredMainEpisode(
     val startMillis: Long,
@@ -102,5 +106,7 @@ data class StoredConfig(
     val awakeningMaxMinutes: Long,
     val windowOpensInQuietMinMinutes: Long,
     // --- v3 (analyzer 1.1.0): null on records produced before these thresholds existed ---
-    val unlockCarryOverMinutes: Long? = null
+    val unlockCarryOverMinutes: Long? = null,
+    val longReturnMinMinutes: Long? = null,
+    val longInterruptionMaxMinutes: Long? = null
 )

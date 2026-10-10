@@ -48,36 +48,60 @@ class NightPatternAnalyzer(private val config: AnalysisConfig = AnalysisConfig()
         val sleepLike = quietBlocks.filter { it.isSleepLike }.sortedBy { it.startMillis }
         val primary = sleepLike.maxByOrNull { it.durationMillis }
 
-        // --- Main sleep run: the sleep-like blocks connected to the primary block
-        //     through SHORT (<= awakeningMax) interruptions. Each crossed interruption
-        //     is one nighttime awakening (lower bound). mainEnd anchors "first use after". ---
+        // --- Main sleep run: the sleep-like blocks connected to the primary block through
+        //     interruptions. The activity between two sleep-like blocks (first touch -> quiet
+        //     returns) is an interruption when it is <= awakeningMax, or <= longInterruptionMax
+        //     AND the rest that resumes after it lasts >= longReturnMin. Otherwise it is the final
+        //     wake (forward) / the start of the night (backward). Each crossed interruption is one
+        //     nighttime awakening (lower bound). mainEnd anchors "first use after". ---
         val awakeningMaxMillis = config.awakeningMaxMinutes * MIN
+        val longInterruptionMaxMillis = config.longInterruptionMaxMinutes * MIN
+        val longReturnMinMillis = config.longReturnMinMinutes * MIN
+        // restEnd[i]: end of the rest that resumes at block i — block i plus the blocks after it that
+        // are joined by short interruptions (a brief check inside the returning quiet doesn't break it).
+        val restEnd = LongArray(sleepLike.size)
+        for (i in sleepLike.indices.reversed()) {
+            restEnd[i] = if (i + 1 < sleepLike.size &&
+                sleepLike[i + 1].startMillis - sleepLike[i].endMillis <= awakeningMaxMillis
+            ) restEnd[i + 1] else sleepLike[i].endMillis
+        }
+        // Does the activity between block i-1 and block i count as an interruption (join them)?
+        fun joinsPrevious(i: Int): Boolean {
+            val active = sleepLike[i].startMillis - sleepLike[i - 1].endMillis
+            if (active <= awakeningMaxMillis) return true
+            return active <= longInterruptionMaxMillis &&
+                restEnd[i] - sleepLike[i].startMillis >= longReturnMinMillis
+        }
         var mainStart: Long? = null
         var mainEnd: Long? = null
         var mainRunSize = 0
         val awakenings = mutableListOf<Long>()
+        var interruptionMillis = 0L
+        var hasLongInterruption = false
         if (primary != null) {
             val idx = sleepLike.indexOf(primary)
             var lo = idx
             var hi = idx
-            while (lo > 0 &&
-                sleepLike[lo].startMillis - sleepLike[lo - 1].endMillis <= awakeningMaxMillis
-            ) lo--
-            while (hi < sleepLike.size - 1 &&
-                sleepLike[hi + 1].startMillis - sleepLike[hi].endMillis <= awakeningMaxMillis
-            ) hi++
+            while (lo > 0 && joinsPrevious(lo)) lo--
+            while (hi < sleepLike.size - 1 && joinsPrevious(hi + 1)) hi++
             mainStart = sleepLike[lo].startMillis
             mainEnd = sleepLike[hi].endMillis
             mainRunSize = hi - lo + 1
-            for (j in (lo + 1)..hi) awakenings.add(sleepLike[j - 1].endMillis)
+            for (j in (lo + 1)..hi) {
+                awakenings.add(sleepLike[j - 1].endMillis)
+                val active = sleepLike[j].startMillis - sleepLike[j - 1].endMillis
+                interruptionMillis += active
+                if (active > awakeningMaxMillis) hasLongInterruption = true
+            }
         }
 
-        // --- 0.3: the bridged MAIN REST EPISODE (primary + sleep-like blocks joined by short
+        // --- 0.3: the bridged MAIN REST EPISODE (primary + sleep-like blocks joined by
         //     interruptions) and the first use after it. The headline + History display these;
-        //     primaryRest / firstUseAfterPrimaryRest (single longest block) stay unchanged. ---
+        //     primaryRest / firstUseAfterPrimaryRest (single longest block) stay unchanged.
+        //     Its duration is NET: the interruptions inside it are subtracted. ---
         val mainRestEpisode: MainRestEpisode? =
             if (mainStart != null && mainEnd != null)
-                MainRestEpisode(mainStart, mainEnd, mainEnd - mainStart)
+                MainRestEpisode(mainStart, mainEnd, (mainEnd - mainStart) - interruptionMillis)
             else null
         val firstUseAfterMainRest: Long? = mainEnd?.let { me ->
             interactions.filter { it.startMillis >= me }.minByOrNull { it.startMillis }?.startMillis
@@ -160,12 +184,13 @@ class NightPatternAnalyzer(private val config: AnalysisConfig = AnalysisConfig()
         val secondaryRests = restPeriods
             .filter { it.role == RestRole.SECONDARY_REST }
             .sortedByDescending { it.block.durationMillis }
-        // 0.3: one main episode with 0–1 bridged interruptions is CONSOLIDATED. FRAGMENTED only when
-        // there are 2+ awakenings inside the episode, OR a sleep-like block that could not be bridged
-        // into the main run (a second significant rest period).
+        // 0.3: one main episode with 0–1 short bridged interruptions is CONSOLIDATED. FRAGMENTED when
+        // there are 2+ awakenings inside the episode, a single LONG (> awakeningMax) interruption, OR
+        // a sleep-like block that could not be bridged into the main run (a second rest period).
         val restPattern = when {
             sleepLike.isEmpty() -> RestPattern.MINIMAL_REST
             awakenings.size >= 2 -> RestPattern.FRAGMENTED
+            hasLongInterruption -> RestPattern.FRAGMENTED
             sleepLike.size - mainRunSize >= 1 -> RestPattern.FRAGMENTED
             else -> RestPattern.CONSOLIDATED
         }

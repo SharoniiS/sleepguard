@@ -268,7 +268,7 @@ class NightPatternAnalyzerTest {
         // refinement #2: two separated SHORT blocks -> FRAGMENTED, never ACTIVE_NIGHT.
         val events =
             use(10 * 60_000L) +                 // anchor near window start
-            use(2 * H) + use(2 * H + 40 * 60_000L) + // active gap (>30 min) between the two blocks
+            use(2 * H) + use(2 * H + 40 * 60_000L) + // 40-min active gap between the two blocks
             use(5 * H) +                        // ends block 2
             fill(9 * H, 20 * H, 80L)            // active day
         val result = analyzer.analyze(events, anchors)
@@ -466,15 +466,82 @@ class NightPatternAnalyzerTest {
         assertEquals(record.mainRestEpisode!!.durationMillis, blocks[0].durationMillis)
     }
 
+    // ---- 1.1.0: interruption vs final wake ------------------------------
+
+    private val M = 60_000L
+
+    /** Unlocked uses every [stepMin] minutes in [from, to): continuous phone activity. */
+    private fun activeFrom(from: Long, to: Long, stepMin: Long = 15L): List<RawScreenEvent> {
+        val out = mutableListOf<RawScreenEvent>()
+        var t = from
+        while (t < to) { out += use(t); t += stepMin * M }
+        return out
+    }
+
     @Test
-    fun longUnlockedWakeDoesNotBridge() {
-        // A ~42-min active wake between two sleep blocks exceeds awakeningMax(30m) -> not bridged.
-        val events = use(10 * 60_000L) + use(3 * H) + use(3 * H + 40 * 60_000L) + fill(9 * H, 20 * H, 80L)
+    fun fortyMinuteWake_isAnInterruption() {
+        // A ~42-min active wake (01:00–01:42) between two sleep blocks is <= 60 min -> joined.
+        // (Before 1.1.0 the limit was 30 min and this night was split.)
+        val events = use(10 * M) + use(3 * H) + use(3 * H + 40 * M) + fill(9 * H, 20 * H, 80L)
         val result = analyzer.analyze(events, anchors)
 
-        // The episode is NOT extended past the primary block; the night is FRAGMENTED.
-        assertEquals(result.primaryRest!!.block.endMillis, result.mainRestEpisode!!.endMillis)
-        assertEquals(RestPattern.FRAGMENTED, result.restPattern)
+        val episode = result.mainRestEpisode!!
+        assertEquals(12 * M, episode.startMillis)
+        assertEquals(9 * H, episode.endMillis)
+        assertEquals(1, result.nighttimeAwakenings.size)
+        assertEquals(RestPattern.CONSOLIDATED, result.restPattern)
+        // Net duration: the 42-min interruption is subtracted from the window.
+        assertEquals((9 * H - 12 * M) - 42 * M, episode.durationMillis)
+    }
+
+    @Test
+    fun longWakeFollowedByLongQuiet_isLongInterruption() {
+        // Sleep 22:12–01:00, awake with the phone 01:00–02:17 (77 min), sleep 02:17–07:00 (4h43m).
+        val events = use(10 * M) + activeFrom(3 * H, 4 * H + 30 * M) + fill(9 * H, 20 * H, 80L)
+        val result = analyzer.analyze(events, anchors)
+
+        val episode = result.mainRestEpisode!!
+        assertEquals(12 * M, episode.startMillis)
+        assertEquals(9 * H, episode.endMillis)
+        assertEquals(listOf(3 * H), result.nighttimeAwakenings)
+        assertEquals(RestPattern.FRAGMENTED, result.restPattern) // one LONG interruption
+        assertEquals((9 * H - 12 * M) - 77 * M, episode.durationMillis)
+    }
+
+    @Test
+    fun longWakeWithoutLongQuietAfter_isFinalWake() {
+        // Sleep 22:12–04:00, awake 04:00–05:17 (77 min), then only 1h43m of quiet -> final wake 04:00.
+        val events = use(10 * M) + activeFrom(6 * H, 7 * H + 30 * M) + fill(9 * H, 20 * H, 80L)
+        val result = analyzer.analyze(events, anchors)
+
+        assertEquals(6 * H, result.mainRestEpisode!!.endMillis)
+        assertEquals(6 * H, result.firstUseAfterMainRest)
+        assertTrue(result.nighttimeAwakenings.isEmpty())
+        assertEquals(RestPattern.FRAGMENTED, result.restPattern) // the later quiet is a separate rest
+    }
+
+    @Test
+    fun wakeLongerThanCap_isNeverAnInterruption() {
+        // Sleep 22:12–00:00, awake with the phone 00:00–03:47 (> 3h), sleep 03:47–10:00.
+        val events = use(10 * M) + activeFrom(2 * H, 5 * H + 46 * M) + fill(12 * H, 20 * H, 80L)
+        val result = analyzer.analyze(events, anchors)
+
+        val episode = result.mainRestEpisode!!
+        assertEquals(5 * H + 47 * M, episode.startMillis) // the earlier block is NOT joined
+        assertTrue(result.nighttimeAwakenings.isEmpty())
+    }
+
+    @Test
+    fun briefCheckInsideReturningQuiet_stillCountsAsLongReturn() {
+        // Sleep 22:12–01:00, awake 01:00–02:17 (77 min), quiet 02:17–04:00, a 2-min check at 04:00,
+        // quiet 04:02–07:00. The returning quiet is 4h43m in total (the check doesn't break it).
+        val events = use(10 * M) + activeFrom(3 * H, 4 * H + 30 * M) + use(6 * H) + fill(9 * H, 20 * H, 80L)
+        val result = analyzer.analyze(events, anchors)
+
+        val episode = result.mainRestEpisode!!
+        assertEquals(12 * M, episode.startMillis)
+        assertEquals(9 * H, episode.endMillis)
+        assertEquals(2, result.nighttimeAwakenings.size)
     }
 
     @Test

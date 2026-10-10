@@ -59,6 +59,8 @@ object NightRecordMapper {
         preSleepLookbackMinutes = c.preSleepLookbackMinutes,
         awakeningMaxMinutes = c.awakeningMaxMinutes,
         windowOpensInQuietMinMinutes = c.windowOpensInQuietMinMinutes,
-        unlockCarryOverMinutes = c.unlockCarryOverMinutes
+        unlockCarryOverMinutes = c.unlockCarryOverMinutes,
+        longReturnMinMinutes = c.longReturnMinMinutes,
+        longInterruptionMaxMinutes = c.longInterruptionMaxMinutes
     )
 }

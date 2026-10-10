@@ -61,8 +61,19 @@ data class AnalysisConfig(
 
     /** preSleepPhoneTime = REAL_USE time in this many minutes before phoneDownTime. */
     val preSleepLookbackMinutes: Long = 120L,
-    /** A REAL_USE interruption no longer than this, between two sleep-like blocks, is an awakening. */
-    val awakeningMaxMinutes: Long = 30L,
+    /**
+     * Activity between two sleep-like blocks — from the first touch until quiet returns — no longer
+     * than this is an interruption: the night continues across it.
+     */
+    val awakeningMaxMinutes: Long = 60L,
+    /**
+     * Longer activity (up to [longInterruptionMaxMinutes]) is still a "long interruption" — the
+     * night continues — if the quiet that follows lasts at least [longReturnMinMinutes] (brief
+     * interruptions inside that quiet do not break it). Otherwise it is the final wake.
+     */
+    val longReturnMinMinutes: Long = 180L,
+    /** Activity longer than this always ends the night (e.g. a 5h awake morning before a midday quiet). */
+    val longInterruptionMaxMinutes: Long = 180L,
     /** If the window opens with a quiet stretch at least this long, phone-down is unobservable. */
     val windowOpensInQuietMinMinutes: Long = 90L
 )
@@ -144,8 +155,8 @@ enum class RestRole {
 
 /** Schedule-agnostic verdict for the window. */
 enum class RestPattern {
-    CONSOLIDATED,   // one dominant rest period, <= 1 awakening
-    FRAGMENTED,     // multiple rest periods and/or several awakenings
+    CONSOLIDATED,   // one dominant rest period, <= 1 short interruption
+    FRAGMENTED,     // multiple rest periods, several interruptions, or one long (> awakeningMax) interruption
     MINIMAL_REST    // no sleep-like block anywhere in the window
 }
 
@@ -157,8 +168,11 @@ data class RestPeriod(
 
 /**
  * 0.3: the bridged MAIN REST EPISODE — the primary block extended across sleep-like blocks that are
- * joined by short (<= awakeningMaxMinutes) interruptions. It spans brief awakenings, so the headline
- * and History display THIS as the central sleep. `primaryRest` stays the single longest block.
+ * joined by interruptions (see [AnalysisConfig.awakeningMaxMinutes] / long-interruption rule). It
+ * spans awakenings, so the headline and History display THIS as the central sleep. `primaryRest`
+ * stays the single longest block.
+ *
+ * [durationMillis] is the NET rest time: (end - start) minus the time of the interruptions inside it.
  */
 data class MainRestEpisode(
     val startMillis: Long,
