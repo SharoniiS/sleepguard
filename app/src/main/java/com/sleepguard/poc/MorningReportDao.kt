@@ -16,11 +16,4 @@ interface MorningReportDao {
     /** A night's report, or null if the user hasn't filled it. */
     @Query("SELECT * FROM morning_reports WHERE nightOf = :nightOf")
     fun getByNight(nightOf: String): MorningReportEntity?
-
-    /** The nightOf of every filled report — lets History badge which nights have a self-report. */
-    @Query("SELECT nightOf FROM morning_reports")
-    fun getFilledNights(): List<String>
-
-    @Query("DELETE FROM morning_reports")
-    fun clearAll()
 }

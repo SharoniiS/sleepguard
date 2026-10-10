@@ -210,7 +210,6 @@ class NightPatternAnalyzer(private val config: AnalysisConfig = AnalysisConfig()
             quietBlocks = quietBlocks,
             nightPattern = nightPattern,
             phoneDownTime = phoneDownTime,
-            longestQuietBlock = primary,
             preSleepPhoneTimeMillis = preSleepPhoneTime,
             nighttimeAwakenings = awakenings,
             confidence = confidence,

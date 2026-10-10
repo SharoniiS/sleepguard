@@ -194,7 +194,6 @@ data class NightPatternResult(
     val quietBlocks: List<QuietBlock>,
     val nightPattern: NightPattern,
     val phoneDownTime: Long?,                 // UNKNOWN -> null
-    val longestQuietBlock: QuietBlock?,       // the primary sleep-like block
     val preSleepPhoneTimeMillis: Long?,       // UNKNOWN -> null
     val nighttimeAwakenings: List<Long>,      // start times; LOWER BOUND
     val confidence: Confidence,
