@@ -78,7 +78,6 @@ internal fun NightReport(
         ) {
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Chip(availabilityHe(record.confidence))
                     Chip(patternHe(record.restPattern))
                 }
             }
@@ -101,7 +100,9 @@ internal fun NightReport(
                 StatCard(Modifier.fillMaxWidth(), "שימוש שעתיים לפני השינה",
                     record.preSleepPhoneTimeMillis?.let { "${it / 60000} דק'" } ?: "לא ידוע")
             }
-            item { RawActivityLog(record.events) }
+            // The stored events include a 2h lead before the window (read only for the pre-sleep
+            // use measure); the log shows the night's own window.
+            item { RawActivityLog(record.events.filter { it.timestampMillis >= record.windowStartMillis }) }
             item { InsightCard(insightHe(record)) }
             item { QuestionnaireCard(report, onFillQuestionnaire) }
             item { Spacer(Modifier.height(24.dp)) }

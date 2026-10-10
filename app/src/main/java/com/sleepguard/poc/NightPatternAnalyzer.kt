@@ -4,12 +4,12 @@ import kotlin.math.max
 import kotlin.math.min
 
 /** Identifies which analyzer logic produced a stored record (for future re-analysis). */
-const val ANALYZER_VERSION = "1.0.0-phase1"
+const val ANALYZER_VERSION = "1.1.0"
 
 /**
  * SleepGuard MVP analyzer.
  *
- * Turns raw screen/lock events from the official window (yesterday 22:00 ->
+ * Turns raw screen/lock events from the official window (yesterday 18:00 ->
  * today 18:00) into a flexible "pattern around sleep" picture that tolerates
  * broken, late, inverted, and white-night sleep — without ever claiming the user
  * "slept". It only reports *possible sleep-like quiet periods* and device activity.
@@ -37,51 +37,84 @@ class NightPatternAnalyzer(private val config: AnalysisConfig = AnalysisConfig()
     ): NightPatternResult {
         // Cap the data end at the collection moment: nothing in the future is analyzed.
         val effectiveEnd = min(anchors.windowEnd, nowMillis)
-        val interactions = buildRealUseInteractions(rawEvents, anchors, effectiveEnd)
+        // Lock/unlock events are the real-use signal. A window with none at all (no lock screen)
+        // falls back to the screen-on duration rule — otherwise the whole day would read as sleep.
+        val lockSignalsPresent = rawEvents.any {
+            it.type == ScreenEventType.KEYGUARD_SHOWN || it.type == ScreenEventType.KEYGUARD_HIDDEN
+        }
+        // All REAL_USE, including the lead before the window opening (read only for preSleepPhoneTime).
+        val allInteractions = buildRealUseInteractions(rawEvents, effectiveEnd, lockSignalsPresent)
+        // REAL_USE inside the analysis window: everything else (quiet blocks, wake, flags) uses these.
+        val interactions = clipToWindow(allInteractions, anchors.windowStart)
         val quietBlocks = buildQuietBlocks(interactions, anchors, effectiveEnd)
 
         val sleepLike = quietBlocks.filter { it.isSleepLike }.sortedBy { it.startMillis }
         val primary = sleepLike.maxByOrNull { it.durationMillis }
 
-        // --- Main sleep run: the sleep-like blocks connected to the primary block
-        //     through SHORT (<= awakeningMax) interruptions. Each crossed interruption
-        //     is one nighttime awakening (lower bound). mainEnd anchors "first use after". ---
+        // --- Main sleep run: the sleep-like blocks connected to the primary block through
+        //     interruptions. The activity between two sleep-like blocks (first touch -> quiet
+        //     returns) is an interruption when it is <= awakeningMax, or <= longInterruptionMax
+        //     AND the rest that resumes after it lasts >= longReturnMin. Otherwise it is the final
+        //     wake (forward) / the start of the night (backward). Each crossed interruption is one
+        //     nighttime awakening (lower bound). mainEnd anchors "first use after". ---
         val awakeningMaxMillis = config.awakeningMaxMinutes * MIN
+        val longInterruptionMaxMillis = config.longInterruptionMaxMinutes * MIN
+        val longReturnMinMillis = config.longReturnMinMinutes * MIN
+        // restEnd[i]: end of the rest that resumes at block i — block i plus the blocks after it that
+        // are joined by short interruptions (a brief check inside the returning quiet doesn't break it).
+        val restEnd = LongArray(sleepLike.size)
+        for (i in sleepLike.indices.reversed()) {
+            restEnd[i] = if (i + 1 < sleepLike.size &&
+                sleepLike[i + 1].startMillis - sleepLike[i].endMillis <= awakeningMaxMillis
+            ) restEnd[i + 1] else sleepLike[i].endMillis
+        }
+        // Does the activity between block i-1 and block i count as an interruption (join them)?
+        fun joinsPrevious(i: Int): Boolean {
+            val active = sleepLike[i].startMillis - sleepLike[i - 1].endMillis
+            if (active <= awakeningMaxMillis) return true
+            return active <= longInterruptionMaxMillis &&
+                restEnd[i] - sleepLike[i].startMillis >= longReturnMinMillis
+        }
         var mainStart: Long? = null
         var mainEnd: Long? = null
         var mainRunSize = 0
         val awakenings = mutableListOf<Long>()
+        var interruptionMillis = 0L
+        var hasLongInterruption = false
         if (primary != null) {
             val idx = sleepLike.indexOf(primary)
             var lo = idx
             var hi = idx
-            while (lo > 0 &&
-                sleepLike[lo].startMillis - sleepLike[lo - 1].endMillis <= awakeningMaxMillis
-            ) lo--
-            while (hi < sleepLike.size - 1 &&
-                sleepLike[hi + 1].startMillis - sleepLike[hi].endMillis <= awakeningMaxMillis
-            ) hi++
+            while (lo > 0 && joinsPrevious(lo)) lo--
+            while (hi < sleepLike.size - 1 && joinsPrevious(hi + 1)) hi++
             mainStart = sleepLike[lo].startMillis
             mainEnd = sleepLike[hi].endMillis
             mainRunSize = hi - lo + 1
-            for (j in (lo + 1)..hi) awakenings.add(sleepLike[j - 1].endMillis)
+            for (j in (lo + 1)..hi) {
+                awakenings.add(sleepLike[j - 1].endMillis)
+                val active = sleepLike[j].startMillis - sleepLike[j - 1].endMillis
+                interruptionMillis += active
+                if (active > awakeningMaxMillis) hasLongInterruption = true
+            }
         }
 
-        // --- 0.3: the bridged MAIN REST EPISODE (primary + sleep-like blocks joined by short
+        // --- 0.3: the bridged MAIN REST EPISODE (primary + sleep-like blocks joined by
         //     interruptions) and the first use after it. The headline + History display these;
-        //     primaryRest / firstUseAfterPrimaryRest (single longest block) stay unchanged. ---
+        //     primaryRest / firstUseAfterPrimaryRest (single longest block) stay unchanged.
+        //     Its duration is NET: the interruptions inside it are subtracted. ---
         val mainRestEpisode: MainRestEpisode? =
             if (mainStart != null && mainEnd != null)
-                MainRestEpisode(mainStart, mainEnd, mainEnd - mainStart)
+                MainRestEpisode(mainStart, mainEnd, (mainEnd - mainStart) - interruptionMillis)
             else null
         val firstUseAfterMainRest: Long? = mainEnd?.let { me ->
             interactions.filter { it.startMillis >= me }.minByOrNull { it.startMillis }?.startMillis
         }
 
-        // --- phoneDownTime: end of the last REAL_USE before the primary block.
-        //     Null (UNKNOWN) when the window opened mid-sleep (no prior use). ---
-        val phoneDownTime: Long? = primary?.let { p ->
-            interactions.filter { it.endMillis <= p.startMillis }.maxOfOrNull { it.endMillis }
+        // --- phoneDownTime: end of the last REAL_USE (inside the window) before the main rest
+        //     episode starts — the shown sleep window, not the single longest block. Null (UNKNOWN)
+        //     when the episode starts at the window opening (no prior use in the window). ---
+        val phoneDownTime: Long? = mainStart?.let { start ->
+            interactions.filter { it.endMillis <= start }.maxOfOrNull { it.endMillis }
         }
 
         // --- WINDOW_OPENS_IN_QUIET: the opening edge gap is itself sleep-like. ---
@@ -89,10 +122,11 @@ class NightPatternAnalyzer(private val config: AnalysisConfig = AnalysisConfig()
         val openingGap = firstUseStart - anchors.windowStart
         val windowOpensInQuiet = openingGap >= config.windowOpensInQuietMinMinutes * MIN
 
-        // --- preSleepPhoneTime: REAL_USE time in the lookback before phone-down. ---
+        // --- preSleepPhoneTime: REAL_USE time in the lookback before phone-down. The lookback may
+        //     reach before the window opening (events are collected from windowStart - lookback). ---
         val preSleepPhoneTime: Long? = phoneDownTime?.let { down ->
-            val lookbackStart = max(down - config.preSleepLookbackMinutes * MIN, anchors.windowStart)
-            interactions.sumOf { i ->
+            val lookbackStart = down - config.preSleepLookbackMinutes * MIN
+            allInteractions.sumOf { i ->
                 val s = max(i.startMillis, lookbackStart)
                 val e = min(i.endMillis, down)
                 if (e > s) e - s else 0L
@@ -129,6 +163,8 @@ class NightPatternAnalyzer(private val config: AnalysisConfig = AnalysisConfig()
         if (sleepLike.size >= 2) flags.add(AnalysisFlag.MULTIPLE_SLEEP_BLOCKS)
         if (nightPattern == NightPattern.ACTIVE_NIGHT) flags.add(AnalysisFlag.ACTIVE_NIGHT)
         if (primary?.label == QuietBlockLabel.DELAYED_SLEEP_LIKE) flags.add(AnalysisFlag.DELAYED_PRIMARY_SLEEP)
+        val hasScreenEvents = rawEvents.any { it.type == ScreenEventType.SCREEN_INTERACTIVE }
+        if (hasScreenEvents && !lockSignalsPresent) flags.add(AnalysisFlag.NO_LOCK_EVENTS)
 
         // --- Confidence (§8): measurement certainty of the sleep claim. ---
         val confidence = when {
@@ -153,12 +189,13 @@ class NightPatternAnalyzer(private val config: AnalysisConfig = AnalysisConfig()
         val secondaryRests = restPeriods
             .filter { it.role == RestRole.SECONDARY_REST }
             .sortedByDescending { it.block.durationMillis }
-        // 0.3: one main episode with 0–1 bridged interruptions is CONSOLIDATED. FRAGMENTED only when
-        // there are 2+ awakenings inside the episode, OR a sleep-like block that could not be bridged
-        // into the main run (a second significant rest period).
+        // 0.3: one main episode with 0–1 short bridged interruptions is CONSOLIDATED. FRAGMENTED when
+        // there are 2+ awakenings inside the episode, a single LONG (> awakeningMax) interruption, OR
+        // a sleep-like block that could not be bridged into the main run (a second rest period).
         val restPattern = when {
             sleepLike.isEmpty() -> RestPattern.MINIMAL_REST
             awakenings.size >= 2 -> RestPattern.FRAGMENTED
+            hasLongInterruption -> RestPattern.FRAGMENTED
             sleepLike.size - mainRunSize >= 1 -> RestPattern.FRAGMENTED
             else -> RestPattern.CONSOLIDATED
         }
@@ -192,15 +229,33 @@ class NightPatternAnalyzer(private val config: AnalysisConfig = AnalysisConfig()
     // Step 1 — meaningful-interaction filter
     // -----------------------------------------------------------------------
 
+    /** All REAL_USE up to [effectiveEnd] — NOT clipped to the window opening (see [clipToWindow]). */
     private fun buildRealUseInteractions(
         rawEvents: List<RawScreenEvent>,
-        anchors: WindowAnchors,
-        effectiveEnd: Long
+        effectiveEnd: Long,
+        lockSignalsPresent: Boolean
     ): List<MeaningfulInteraction> {
         val events = rawEvents.sortedBy { it.timestampMillis }
         val keyguardHidden = events
             .filter { it.type == ScreenEventType.KEYGUARD_HIDDEN }
             .map { it.timestampMillis }
+        val keyguardEvents = events.filter {
+            it.type == ScreenEventType.KEYGUARD_SHOWN || it.type == ScreenEventType.KEYGUARD_HIDDEN
+        }
+        val screenOffs = events
+            .filter { it.type == ScreenEventType.SCREEN_NON_INTERACTIVE }
+            .map { it.timestampMillis }
+        val carryOverMillis = config.unlockCarryOverMinutes * MIN
+
+        // Was the phone still unlocked when the screen turned on at [t]? True when the last lock
+        // event before [t] is an unlock (no KEYGUARD_SHOWN since), and the phone has not sat
+        // unlocked-but-idle for longer than the carry-over limit (guards against a missed lock event).
+        fun stillUnlockedAt(t: Long): Boolean {
+            val last = keyguardEvents.lastOrNull { it.timestampMillis <= t } ?: return false
+            if (last.type != ScreenEventType.KEYGUARD_HIDDEN) return false
+            val lastOff = screenOffs.lastOrNull { it <= t } ?: Long.MIN_VALUE
+            return t - max(last.timestampMillis, lastOff) <= carryOverMillis
+        }
 
         // Pair SCREEN_INTERACTIVE -> next SCREEN_NON_INTERACTIVE into raw sessions, tracking HOW
         // each session closed. A SCREEN_INTERACTIVE that never sees its own SCREEN_NON_INTERACTIVE
@@ -232,25 +287,32 @@ class NightPatternAnalyzer(private val config: AnalysisConfig = AnalysisConfig()
         val result = mutableListOf<MeaningfulInteraction>()
         for (s in sessions) {
             when (s.close) {
-                // Properly closed session: the on-duration is trustworthy -> original rule unchanged.
+                // Properly closed session. Real use = the phone was unlocked while the screen was on
+                // (an unlock during the session, or still unlocked from before). A lit but LOCKED
+                // screen — alarm, incoming call, notification — is never real use, however long.
+                // Fallback for phones with no lock events at all: the screen-on duration rule.
                 SessionClose.CLOSED_OFF -> {
-                    val start = max(s.start, anchors.windowStart)
+                    val start = s.start
                     val end = min(s.end, effectiveEnd)
                     val duration = end - start
                     if (duration <= 0L) continue
-                    val wasUnlocked = keyguardHidden.any { it in s.start..s.end }
-                    val isRealUse =
-                        (config.treatUnlockAsMeaningful && wasUnlocked) || duration >= minOnMillis
+                    val isRealUse = if (lockSignalsPresent) {
+                        keyguardHidden.any { it in s.start..s.end } || stillUnlockedAt(s.start)
+                    } else {
+                        duration >= minOnMillis
+                    }
                     if (isRealUse) result.add(MeaningfulInteraction(start, end, duration))
                 }
                 // Unknown on-duration: a screen-on we never saw close cannot count as real use by
-                // duration. Only a genuine unlock NEAR ITS START makes it meaningful — and the unlock
-                // search is bounded so a far-away unlock (e.g. next morning) is NOT swallowed (1a).
+                // duration. Only a genuine unlock NEAR ITS START (or a phone still unlocked from
+                // before) makes it meaningful — and the unlock search is bounded so a far-away
+                // unlock (e.g. next morning) is NOT swallowed (1a).
                 SessionClose.MISSED_OFF, SessionClose.OPEN_AT_END -> {
                     val point = s.start
-                    if (point < anchors.windowStart || point > effectiveEnd) continue
-                    val wasUnlocked = keyguardHidden.any { it in point..(point + UNLOCK_ASSOC_WINDOW) }
-                    if (config.treatUnlockAsMeaningful && wasUnlocked) {
+                    if (point > effectiveEnd) continue
+                    val wasUnlocked = keyguardHidden.any { it in point..(point + UNLOCK_ASSOC_WINDOW) } ||
+                        stillUnlockedAt(point)
+                    if (wasUnlocked) {
                         result.add(MeaningfulInteraction(point, point, 0L)) // duration unknown -> a point
                     }
                     // Otherwise a passive unclosed blip: dropped, must NOT break a quiet period.
@@ -258,6 +320,18 @@ class NightPatternAnalyzer(private val config: AnalysisConfig = AnalysisConfig()
             }
         }
         return result.sortedBy { it.startMillis }
+    }
+
+    /** The REAL_USE inside the analysis window: a use straddling the opening is cut at it. */
+    private fun clipToWindow(
+        all: List<MeaningfulInteraction>,
+        windowStart: Long
+    ): List<MeaningfulInteraction> = all.mapNotNull { i ->
+        when {
+            i.startMillis >= windowStart -> i
+            i.endMillis > windowStart -> MeaningfulInteraction(windowStart, i.endMillis, i.endMillis - windowStart)
+            else -> null // entirely before the window (the lookback lead)
+        }
     }
 
     // -----------------------------------------------------------------------
