@@ -78,7 +78,6 @@ internal fun NightReport(
         ) {
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Chip(availabilityHe(record.confidence))
                     Chip(patternHe(record.restPattern))
                 }
             }

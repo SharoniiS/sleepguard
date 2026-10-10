@@ -201,7 +201,6 @@ private fun HomeScreen(latest: NightRecord?, last24h: Last24hActivity?) {
                 Text("משך חוסר הפעילות", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(16.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Chip(availabilityHe(latest.confidence))
                     Chip(patternHe(latest.restPattern))
                 }
             }
@@ -511,13 +510,6 @@ internal fun patternHe(p: String): String = when (p) {
     "FRAGMENTED" -> "מקוטע"
     "MINIMAL_REST" -> "פעיל ברובו"
     else -> p
-}
-
-internal fun availabilityHe(c: String): String = when (c) {
-    "HIGH" -> "נתונים מלאים"
-    "MEDIUM" -> "נתונים חלקיים"
-    "LOW" -> "נתונים מועטים"
-    else -> c
 }
 
 /** Reference span for the History progress bar (10h = a "full" bar). */
