@@ -202,6 +202,28 @@ experimental `ExposedDropdownMenu` (unresolved in Material3 BOM 2024.06) → rep
 — the consolidated current-state reference (module map, data model, screens/nav, tech stack, and a
 **decision log**). This §0 stays the chronological history; ARCHITECTURE.md is the clean overview.
 
+**2026-10-10 — Night-detection logic review → analyzer 1.1.0 (each rule approved by the user).**
+A review ran realistic nights through the analyzer and found misreports; the user decided each one.
+Details + rationale: `NIGHT_DETECTION_LOGIC_SPEC.md` §15. Summary:
+- **Only an unlocked phone is real use** (fixes bug 0.2). A lit but locked screen (alarm, incoming
+  call, notification, lock-screen reading) never breaks sleep, however long. A screen-on while the
+  phone is still unlocked from before counts (≤ 30 min carry-over). No lock events at all in the
+  input (phone without a lock screen) → fallback to the old ≥ 60 s rule + `NO_LOCK_EVENTS` flag.
+- **Interruption vs final wake:** activity between two sleep-like blocks ≤ 60 min = interruption;
+  60 min–3h followed by ≥ 3h of quiet = long interruption (night continues, `FRAGMENTED`); otherwise
+  = final wake. The shown duration is NET (interruptions subtracted).
+- **Night window 18:00 → 18:00** (was 22:00 → 18:00), shared helper `NightWindow`. Events are read
+  from 16:00 — the 2h lead feeds only "use in the 2h before sleep".
+- **Phone-down / pre-sleep use** are anchored to the start of the shown window (was: the single
+  longest block, which reported a 2-min night check as "use before sleep").
+- **"Data level" chip removed** from Home + Night Report (confidence still computed/stored).
+- **Kept by decision:** a ≥ 90-min quiet joined by a brief check stays part of the night (finding 3);
+  the longest rest wins wherever it falls (finding 5).
+- **Recent history recalculated:** nights from an older `analyzerVersion` inside the 9-day backfill
+  are re-analyzed once (`BackfillPolicy`), with a retention guard (stored events win if the fresh
+  read is thinner). Older nights keep their old results. `STORAGE_SCHEMA_VERSION` → 3 (additive).
+- Tests: 48 → 93 (new `NightScenarioTest` pins 18 whole-night scenarios in clock time).
+
 **2026-10-10 — Google Play readiness, Phase 1.** The user has an active *personal* Play developer
 account → a 14-day closed test with ≥12 testers is required before production, and the tested build
 is the one promoted, so these land before the first upload. One commit each on
@@ -222,9 +244,11 @@ is the one promoted, so these land before the first upload. One commit each on
   contact email are placeholders.
 - NOT built here: the container's network policy blocks `dl.google.com`, so no Android SDK. Build +
   run tests in Android Studio.
-- **Phase 2 (waits for PR #1 to merge, to avoid conflicts in `SleepApp.kt` / `SleepViewModel.kt` /
-  `NightReport.kt`):** questionnaire DB access off the main thread, `versionName 1.0.0` read from
-  `BuildConfig`, privacy-card copy, and a zoomable poster card at the end of "מידע נוסף".
+- **Phase 2 (waits for the other agent's `claude/code-cleanup` branch — it touches
+  `SleepViewModel.kt` and may delete `MainActivity`):** questionnaire DB access off the main thread,
+  `versionName 1.0.0` read from `BuildConfig`, privacy-card copy, and a zoomable poster card at the
+  end of "מידע נוסף". If `MainActivity` is deleted there, the `debugScreenEnabled` placeholder and
+  `android:enabled` lines above go with it, and `allowMainThreadQueries()` can be dropped.
 
 ---
 
@@ -378,12 +402,14 @@ The technical logs were reorganized away from one giant global event dump:
   anything about the user).
 
 ### `NightPatternAnalyzer` design (the MVP logic)
-- **Official window:** yesterday **22:00 → today 18:00**, device timezone. Computed as
-  absolute `WindowAnchors` (windowStart, 04:00, 06:00, 12:00, windowEnd=18:00) to avoid
-  across-midnight ambiguity. **Do not assume sleep is 23:00–08:00.**
-- **Meaningful interaction (REAL_USE):** unlocked (`KEYGUARD_HIDDEN`) **OR** screen-on
-  ≥ 60 s. Configurable via `AnalysisConfig`. Notification glows / micro-taps are **ignored**
-  so they don't falsely break a quiet period.
+- **Official window:** yesterday **18:00 → today 18:00** (since 1.1.0; was 22:00), device
+  timezone, via `NightWindow`. Computed as absolute `WindowAnchors` (windowStart, 04:00, 06:00,
+  12:00, windowEnd=18:00) to avoid across-midnight ambiguity. Events are read from 16:00 (2h lead,
+  used only for pre-sleep phone use). **Do not assume sleep is 23:00–08:00.**
+- **Meaningful interaction (REAL_USE), since 1.1.0:** the screen was on **while the phone was
+  unlocked** — an unlock during the session, or still unlocked from before (≤ 30 min carry-over).
+  A lit but locked screen (alarm, call, notification) is never REAL_USE. Fallback only when the
+  input has no lock/unlock events at all: screen-on ≥ 60 s.
 - **Quiet-block label precedence (first match wins):**
   1. `DELAYED_SLEEP_LIKE` — ≥ 3h **and** starts in [04:00, 12:00)
   2. `MORNING_RECOVERY_SLEEP` — ≥ 90 min **and** starts in [06:00, 12:00)
@@ -398,21 +424,26 @@ The technical logs were reorganized away from one giant global event dump:
   `DELAYED_SLEEP_LIKE`, `RECOVERY_SLEEP`, `ACTIVE_NIGHT`.
   - **Decision:** `ACTIVE_NIGHT` only when **no** sleep-like block ≥ 90 min exists anywhere.
     Multiple `SHORT` blocks → `FRAGMENTED_SLEEP_LIKE`, not `ACTIVE_NIGHT`.
-- **Awakenings:** REAL_USE interruptions (≤ 30 min) sandwiched between two sleep-like blocks.
-  Reported as a **lower bound** (awakenings without phone use are invisible). Cause never inferred.
+- **Awakenings (since 1.1.0):** activity between two sleep-like blocks is an interruption when
+  ≤ 60 min, or ≤ 3h followed by ≥ 3h of quiet ("long interruption"); otherwise it is the final
+  wake. Reported as a **lower bound** (awakenings without phone use are invisible). Cause never
+  inferred. The shown duration is net of interruptions.
 - **Future-window cap:** `effectiveAnalysisEnd = min(windowEnd, now)`. The analyzer NEVER
   infers activity or quiet periods after the collection moment (prevents a phantom afternoon
   nap when collecting before 18:00). Implemented via the `nowMillis` param on `analyze()`.
 - **Confidence (HIGH/MEDIUM/LOW):** measurement certainty of the sleep claim, not a medical
-  score. LOW for active night / window-opens-in-quiet / no morning interaction.
+  score. LOW for active night / window-opens-in-quiet / no morning interaction. **Not shown in
+  the product UI since 2026-10-10** (user decision); still computed and stored.
 - **UNKNOWN is honest:** nullable fields (`phoneDownTime`, `preSleepPhoneTime`, etc.) render
   as "Unknown" — never as 0, never fabricated.
 
 ### Tunable knobs (`AnalysisConfig`, current defaults)
-`meaningfulMinScreenOnSeconds=60`, `microQuietMinMinutes=20`, `shortSleepMinMinutes=90`,
+`meaningfulMinScreenOnSeconds=60` (fallback only — no lock events), `unlockCarryOverMinutes=30`,
+`microQuietMinMinutes=20`, `shortSleepMinMinutes=90`,
 `mainSleepMinMinutes=240`, `delayedSleepMinMinutes=180`, `recoveryMinMinutes=90`,
 `preSleepLookbackMinutes=120` (pre-sleep phone use is the **last 2h before phone-down only**),
-`awakeningMaxMinutes=30`, `windowOpensInQuietMinMinutes=90`.
+`awakeningMaxMinutes=60`, `longReturnMinMinutes=180`, `longInterruptionMaxMinutes=180`,
+`windowOpensInQuietMinMinutes=90`.
 
 ### Schedule-agnostic structural model (the forward direction)
 `NightPatternAnalyzer` also produces a **clock-free** structural view, because the target

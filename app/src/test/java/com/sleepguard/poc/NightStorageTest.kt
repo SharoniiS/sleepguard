@@ -72,6 +72,23 @@ class NightStorageTest {
     }
 
     @Test
+    fun olderRecordWithoutNewConfigFields_stillDeserializes() {
+        // A record saved before analyzer 1.1.0 has no unlockCarryOver/longReturn/longInterruption
+        // fields in its config snapshot: it must still load, with those fields null (not invented).
+        val newer = json.encodeToString(sampleRecord("2026-06-14"))
+        val older = newer.lines().filterNot {
+            it.contains("\"unlockCarryOverMinutes\"") || it.contains("\"longReturnMinMinutes\"") ||
+                it.contains("\"longInterruptionMaxMinutes\"")
+        }.joinToString("\n").replace(Regex(",(\\s*)}"), "$1}")
+        val decoded: NightRecord = json.decodeFromString(older)
+
+        assertEquals(null, decoded.config.unlockCarryOverMinutes)
+        assertEquals(null, decoded.config.longReturnMinMinutes)
+        assertEquals(null, decoded.config.longInterruptionMaxMinutes)
+        assertEquals(AnalysisConfig().mainSleepMinMinutes, decoded.config.mainSleepMinMinutes)
+    }
+
+    @Test
     fun entityMapper_roundTrip() {
         val record = sampleRecord("2026-06-14", collectedAt = 5L)
         val restored = NightEntityMapper.toRecord(NightEntityMapper.toEntity(record))

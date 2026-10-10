@@ -11,8 +11,18 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDate
-import java.time.LocalTime
 import java.time.ZoneId
+
+/**
+ * A rolling snapshot of phone activity for the window [startMillis, endMillis] — the Home
+ * "last 24 hours" view. Purely descriptive raw events (timestamp + type); NOT analyzed and NEVER
+ * persisted, so it can't collide with a stored night record.
+ */
+data class Last24hActivity(
+    val startMillis: Long,
+    val endMillis: Long,
+    val events: List<StoredEvent>
+)
 
 /**
  * State holder for the Compose product UI. Reuses the existing data/logic classes. Synchronous for
@@ -42,6 +52,8 @@ class SleepViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var savedMedications by mutableStateOf<List<String>>(emptyList())
         private set
+    var last24h by mutableStateOf<Last24hActivity?>(null)
+        private set
 
     /** Re-check permission, auto-collect recent nights, and reload. Call on resume. */
     fun refresh() {
@@ -51,6 +63,7 @@ class SleepViewModel(app: Application) : AndroidViewModel(app) {
         nights = sorted
         latestComplete = pickHeadline(sorted)
         savedMedications = medicationDao.getAll()
+        last24h = if (hasPermission) runCatching { collectLast24h() }.getOrNull() else null
     }
 
     /** Add (and remember) a medication name so it can be reused from the questionnaire dropdown. */
@@ -88,37 +101,39 @@ class SleepViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---- collection (ported from MainActivity; see class note) ----
 
-    private fun at(date: LocalDate, hour: Int): Long =
-        date.atTime(LocalTime.of(hour, 0)).atZone(zone).toInstant().toEpochMilli()
+    /** Collect the rolling last-24h window [now-24h, now] on demand. Independent of the nightly
+     *  backfill and NOT persisted — feeds the Home "last 24 hours" card. */
+    private fun collectLast24h(): Last24hActivity {
+        val now = Instant.now().toEpochMilli()
+        val start = now - 24L * 60 * 60 * 1000
+        val collection = collector.collect(start, now)
+        return Last24hActivity(
+            startMillis = start,
+            endMillis = now,
+            events = collection.events.map { StoredEvent(it.timestampMillis, it.type.name) }
+        )
+    }
 
-    private fun anchorsForNight(morning: LocalDate) = WindowAnchors(
-        windowStart = at(morning.minusDays(1), 22),
-        morningEarliest = at(morning, 4),
-        morningStart = at(morning, 6),
-        noon = at(morning, 12),
-        windowEnd = at(morning, 18)
-    )
-
-    private fun dayWindow(morning: LocalDate): Pair<Long, Long> =
-        at(morning.minusDays(1), 18) to at(morning, 18)
-
-    private fun isComplete(r: NightRecord): Boolean = r.collectedAtMillis >= r.windowEndMillis
-
+    /** (Re)analyze the recent nights that need it — see [BackfillPolicy.needsAnalysis]. */
     private fun collectBackfill() {
         val today = LocalDate.now(zone)
-        val complete = repo.loadAll().filter { isComplete(it) }.map { it.nightOf }.toSet()
+        val stored = repo.loadAll().associateBy { it.nightOf }
         for (k in 0 until backfillLookbackDays) {
             val morning = today.minusDays(k.toLong())
-            val (start, end) = dayWindow(morning)
+            val existing = stored[morning.toString()]
+            if (!BackfillPolicy.needsAnalysis(existing)) continue
+            val anchors = NightWindow.anchors(morning, zone)
+            val (start, end) = NightWindow.collectionRange(morning, zone, config.preSleepLookbackMinutes)
             val collection = runCatching { collector.collect(start, end) }.getOrNull() ?: continue
-            if (collection.events.isEmpty()) continue
-            if (morning.toString() in complete) continue
+            // Retention guard: re-analyze the stored events if the fresh read came back thinner.
+            val keepStored = existing?.takeIf { BackfillPolicy.preferStoredEvents(collection.events, it, anchors) }
+            val events = keepStored?.let { BackfillPolicy.toRawEvents(it.events) } ?: collection.events
+            if (events.isEmpty()) continue
+            val rawEventCount = keepStored?.rawEventCount ?: collection.rawEventCount
             val now = Instant.now().toEpochMilli()
-            val result = analyzer.analyze(collection.events, anchorsForNight(morning), now)
+            val result = analyzer.analyze(events, anchors, now)
             repo.upsert(
-                NightRecordMapper.toRecord(
-                    result, collection.events, collection.rawEventCount, morning.toString(), now, config
-                )
+                NightRecordMapper.toRecord(result, events, rawEventCount, morning.toString(), now, config)
             )
         }
     }

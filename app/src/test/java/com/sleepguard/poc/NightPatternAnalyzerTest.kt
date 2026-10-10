@@ -112,18 +112,101 @@ class NightPatternAnalyzerTest {
         assertTrue(result.quietBlocks.any { it.startMillis <= 5 * H && it.endMillis >= 5 * H && it.isSleepLike })
     }
 
-    @Test
-    fun meaningfulThresholdIsConfigurable() {
-        val glow = listOf(
-            RawScreenEvent(5 * H, ScreenEventType.SCREEN_INTERACTIVE),
-            RawScreenEvent(5 * H + 30_000L, ScreenEventType.SCREEN_NON_INTERACTIVE)
-        )
-        val events = use(10 * 60_000L) + glow + use(9 * H)
-        // Lower the threshold to 10s: the 30s glow now counts as real use.
-        val result = NightPatternAnalyzer(AnalysisConfig(meaningfulMinScreenOnSeconds = 10L))
-            .analyze(events, anchors)
+    // ---- 1.1.0: only an UNLOCKED phone is real use ----------------------
 
-        assertEquals(3, result.interactions.size)
+    /** A screen-on of [durSeconds] with NO unlock (alarm / incoming call / notification). */
+    private fun locked(start: Long, durSeconds: Long): List<RawScreenEvent> = listOf(
+        RawScreenEvent(start, ScreenEventType.SCREEN_INTERACTIVE),
+        RawScreenEvent(start + durSeconds * 1_000L, ScreenEventType.SCREEN_NON_INTERACTIVE)
+    )
+
+    @Test
+    fun longLockedScreenOn_isNotRealUse() {
+        // A 5-minute lit-but-locked screen at 03:00 (e.g. a ringing call) must not break sleep.
+        val events = use(10 * 60_000L) + locked(5 * H, 300L) + fill(9 * H, 20 * H, 80L)
+        val result = analyzer.analyze(events, anchors)
+
+        assertFalse(result.interactions.any { it.startMillis == 5 * H })
+        assertTrue(result.quietBlocks.any { it.startMillis <= 5 * H && it.endMillis >= 5 * H && it.isSleepLike })
+        assertTrue(result.nighttimeAwakenings.isEmpty())
+    }
+
+    @Test
+    fun alarmRingingLocked_doesNotEndSleep() {
+        // Alarm at 06:30 rings 3 min with no unlock; the real wake (unlock) is 08:00.
+        val alarm = 8 * H + 30 * 60_000L
+        val events = use(10 * 60_000L) + locked(alarm, 180L) + fill(10 * H, 20 * H, 80L)
+        val result = analyzer.analyze(events, anchors)
+
+        assertEquals(10 * H, result.mainRestEpisode!!.endMillis)
+        assertEquals(10 * H, result.firstUseAfterMainRest)
+    }
+
+    @Test
+    fun screenOnWhilePhoneStillUnlocked_isRealUse() {
+        // Unlocked use at 03:00 (screen off 03:02, no lock event: "lock after X min" setting),
+        // screen back on at 03:05 for 20 min WITHOUT a new unlock -> the phone was still unlocked.
+        val again = 5 * H + 5 * 60_000L
+        val events = use(10 * 60_000L) + use(5 * H) + locked(again, 1200L) + fill(9 * H, 20 * H, 80L)
+        val result = analyzer.analyze(events, anchors)
+
+        assertTrue(result.interactions.any { it.startMillis == again })
+    }
+
+    @Test
+    fun lockEventInBetween_nextScreenOnIsLocked() {
+        // Same as above, but the phone locked (KEYGUARD_SHOWN) when the screen went off at 03:02.
+        val again = 5 * H + 5 * 60_000L
+        val events = use(10 * 60_000L) + use(5 * H) +
+            listOf(RawScreenEvent(5 * H + 120_000L, ScreenEventType.KEYGUARD_SHOWN)) +
+            locked(again, 1200L) + fill(9 * H, 20 * H, 80L)
+        val result = analyzer.analyze(events, anchors)
+
+        assertFalse(result.interactions.any { it.startMillis == again })
+    }
+
+    @Test
+    fun stillUnlockedCarryOver_expiresAfterLimit() {
+        // No lock event recorded, but the screen comes back 45 min after the last use (> 30 min
+        // carry-over) with no unlock -> treated as locked (a lock event was probably missed).
+        val later = 5 * H + 47 * 60_000L
+        val events = use(10 * 60_000L) + use(5 * H) + locked(later, 300L) + fill(9 * H, 20 * H, 80L)
+        val result = analyzer.analyze(events, anchors)
+
+        assertFalse(result.interactions.any { it.startMillis == later })
+    }
+
+    @Test
+    fun unlockLoggedJustBeforeScreenOn_stillCounts() {
+        // Fingerprint/face unlock can be logged a few ms BEFORE the screen-on event.
+        val t = 5 * H
+        val events = use(10 * 60_000L) +
+            listOf(RawScreenEvent(t - 5L, ScreenEventType.KEYGUARD_HIDDEN)) +
+            locked(t, 120L) + fill(9 * H, 20 * H, 80L)
+        val result = analyzer.analyze(events, anchors)
+
+        assertTrue(result.interactions.any { it.startMillis == t })
+    }
+
+    @Test
+    fun noLockEventsAtAll_fallsBackToDurationRule() {
+        // A phone with no lock screen logs no lock/unlock events: then a screen-on >= 60s counts
+        // (configurable), a shorter one does not, and the record is flagged.
+        val events = locked(10 * 60_000L, 120L) + locked(5 * H, 30L) + locked(9 * H, 120L)
+        val result = analyzer.analyze(events, anchors)
+
+        assertEquals(2, result.interactions.size) // the 30s glow at 03:00 is dropped
+        assertTrue(result.flags.contains(AnalysisFlag.NO_LOCK_EVENTS))
+        // The fallback threshold is configurable: at 10s the 30s glow counts too.
+        val lowered = NightPatternAnalyzer(AnalysisConfig(meaningfulMinScreenOnSeconds = 10L))
+            .analyze(events, anchors)
+        assertEquals(3, lowered.interactions.size)
+    }
+
+    @Test
+    fun lockEventsPresent_noNoLockFlag() {
+        val result = analyzer.analyze(use(10 * 60_000L) + fill(9 * H, 20 * H, 80L), anchors)
+        assertFalse(result.flags.contains(AnalysisFlag.NO_LOCK_EVENTS))
     }
 
     // ---- WINDOW_OPENS_IN_QUIET (req #4) ---------------------------------
@@ -185,7 +268,7 @@ class NightPatternAnalyzerTest {
         // refinement #2: two separated SHORT blocks -> FRAGMENTED, never ACTIVE_NIGHT.
         val events =
             use(10 * 60_000L) +                 // anchor near window start
-            use(2 * H) + use(2 * H + 40 * 60_000L) + // active gap (>30 min) between the two blocks
+            use(2 * H) + use(2 * H + 40 * 60_000L) + // 40-min active gap between the two blocks
             use(5 * H) +                        // ends block 2
             fill(9 * H, 20 * H, 80L)            // active day
         val result = analyzer.analyze(events, anchors)
@@ -221,13 +304,67 @@ class NightPatternAnalyzerTest {
 
     @Test
     fun preSleepPhoneTimeCountsOnlyLastTwoHours() {
-        // Phone-down at the 3H use; an earlier use at 0 (3h before) is outside the 2h lookback.
-        val events = use(0L) + use(3 * H) + fill(11 * H, 20 * H, 80L)
+        // Uses at 22:00, 23:30, 00:30 (gaps < 90 min), phone-down 00:32. The 22:00 use is more
+        // than 2h before phone-down -> outside the lookback; the other two (2 min each) count.
+        val events = use(0L) + use(90 * 60_000L) + use(150 * 60_000L) + fill(11 * H, 20 * H, 80L)
         val result = analyzer.analyze(events, anchors)
 
-        // phoneDownTime = end of the 3H use; only that use falls in the 2h lookback.
-        val expected = result.interactions.first { it.startMillis == 3 * H }.durationMillis
-        assertEquals(expected, result.preSleepPhoneTimeMillis)
+        assertEquals(152 * 60_000L, result.phoneDownTime)
+        assertEquals(4 * 60_000L, result.preSleepPhoneTimeMillis)
+    }
+
+    @Test
+    fun phoneDown_isBeforeTheShownWindow_notBeforeTheLongestBlock() {
+        // Evening uses until 22:22, sleep, a 2-min check at 03:00, sleep until 08:00. The second
+        // half is the longest block, but the shown window starts at 22:22 — so does phone-down.
+        val events = use(0L) + use(10 * 60_000L) + use(20 * 60_000L) + use(5 * H) + fill(10 * H, 20 * H, 80L)
+        val result = analyzer.analyze(events, anchors)
+
+        assertEquals(5 * H + 2 * 60_000L, result.primaryRest!!.block.startMillis) // longest = 2nd half
+        assertEquals(22 * 60_000L, result.mainRestEpisode!!.startMillis)
+        assertEquals(22 * 60_000L, result.phoneDownTime)
+        assertEquals(6 * 60_000L, result.preSleepPhoneTimeMillis) // the three evening uses
+    }
+
+    @Test
+    fun preSleepLookback_reachesBeforeWindowOpening() {
+        // Uses BEFORE the window opens (the collection lead) count toward the 2h before phone-down,
+        // but never become part of the night.
+        val events = use(-90 * 60_000L) + use(-60 * 60_000L) + use(-30 * 60_000L) +
+            use(10 * 60_000L) + fill(9 * H, 20 * H, 80L)
+        val result = analyzer.analyze(events, anchors)
+
+        assertTrue(result.interactions.all { it.startMillis >= 0L }) // nothing before the opening
+        assertEquals(12 * 60_000L, result.phoneDownTime)
+        assertEquals(8 * 60_000L, result.preSleepPhoneTimeMillis) // 4 uses x 2 min
+    }
+
+    @Test
+    fun useStraddlingWindowOpening_isClippedForTheNight() {
+        // An unlocked use from 5 min before the opening to 3 min after it.
+        val straddle = listOf(
+            RawScreenEvent(-5 * 60_000L, ScreenEventType.SCREEN_INTERACTIVE),
+            RawScreenEvent(-5 * 60_000L + 1_000L, ScreenEventType.KEYGUARD_HIDDEN),
+            RawScreenEvent(3 * 60_000L, ScreenEventType.SCREEN_NON_INTERACTIVE)
+        )
+        val result = analyzer.analyze(straddle + fill(9 * H, 20 * H, 80L), anchors)
+
+        val first = result.interactions.first()
+        assertEquals(0L, first.startMillis)
+        assertEquals(3 * 60_000L, first.endMillis)
+        assertEquals(3 * 60_000L, result.phoneDownTime)
+        assertEquals(8 * 60_000L, result.preSleepPhoneTimeMillis) // the whole use, before + after
+    }
+
+    @Test
+    fun useOnlyBeforeWindow_phoneDownStillUnknown() {
+        // Last use before the opening; the night starts at the opening -> phone-down is UNKNOWN.
+        val events = use(-30 * 60_000L) + fill(10 * H, 20 * H, 80L)
+        val result = analyzer.analyze(events, anchors)
+
+        assertEquals(0L, result.mainRestEpisode!!.startMillis)
+        assertNull(result.phoneDownTime)
+        assertNull(result.preSleepPhoneTimeMillis)
     }
 
     // ---- Future-window cap (nowMillis) ----------------------------------
@@ -383,15 +520,82 @@ class NightPatternAnalyzerTest {
         assertEquals(record.mainRestEpisode!!.durationMillis, blocks[0].durationMillis)
     }
 
+    // ---- 1.1.0: interruption vs final wake ------------------------------
+
+    private val M = 60_000L
+
+    /** Unlocked uses every [stepMin] minutes in [from, to): continuous phone activity. */
+    private fun activeFrom(from: Long, to: Long, stepMin: Long = 15L): List<RawScreenEvent> {
+        val out = mutableListOf<RawScreenEvent>()
+        var t = from
+        while (t < to) { out += use(t); t += stepMin * M }
+        return out
+    }
+
     @Test
-    fun longUnlockedWakeDoesNotBridge() {
-        // A ~42-min active wake between two sleep blocks exceeds awakeningMax(30m) -> not bridged.
-        val events = use(10 * 60_000L) + use(3 * H) + use(3 * H + 40 * 60_000L) + fill(9 * H, 20 * H, 80L)
+    fun fortyMinuteWake_isAnInterruption() {
+        // A ~42-min active wake (01:00–01:42) between two sleep blocks is <= 60 min -> joined.
+        // (Before 1.1.0 the limit was 30 min and this night was split.)
+        val events = use(10 * M) + use(3 * H) + use(3 * H + 40 * M) + fill(9 * H, 20 * H, 80L)
         val result = analyzer.analyze(events, anchors)
 
-        // The episode is NOT extended past the primary block; the night is FRAGMENTED.
-        assertEquals(result.primaryRest!!.block.endMillis, result.mainRestEpisode!!.endMillis)
-        assertEquals(RestPattern.FRAGMENTED, result.restPattern)
+        val episode = result.mainRestEpisode!!
+        assertEquals(12 * M, episode.startMillis)
+        assertEquals(9 * H, episode.endMillis)
+        assertEquals(1, result.nighttimeAwakenings.size)
+        assertEquals(RestPattern.CONSOLIDATED, result.restPattern)
+        // Net duration: the 42-min interruption is subtracted from the window.
+        assertEquals((9 * H - 12 * M) - 42 * M, episode.durationMillis)
+    }
+
+    @Test
+    fun longWakeFollowedByLongQuiet_isLongInterruption() {
+        // Sleep 22:12–01:00, awake with the phone 01:00–02:17 (77 min), sleep 02:17–07:00 (4h43m).
+        val events = use(10 * M) + activeFrom(3 * H, 4 * H + 30 * M) + fill(9 * H, 20 * H, 80L)
+        val result = analyzer.analyze(events, anchors)
+
+        val episode = result.mainRestEpisode!!
+        assertEquals(12 * M, episode.startMillis)
+        assertEquals(9 * H, episode.endMillis)
+        assertEquals(listOf(3 * H), result.nighttimeAwakenings)
+        assertEquals(RestPattern.FRAGMENTED, result.restPattern) // one LONG interruption
+        assertEquals((9 * H - 12 * M) - 77 * M, episode.durationMillis)
+    }
+
+    @Test
+    fun longWakeWithoutLongQuietAfter_isFinalWake() {
+        // Sleep 22:12–04:00, awake 04:00–05:17 (77 min), then only 1h43m of quiet -> final wake 04:00.
+        val events = use(10 * M) + activeFrom(6 * H, 7 * H + 30 * M) + fill(9 * H, 20 * H, 80L)
+        val result = analyzer.analyze(events, anchors)
+
+        assertEquals(6 * H, result.mainRestEpisode!!.endMillis)
+        assertEquals(6 * H, result.firstUseAfterMainRest)
+        assertTrue(result.nighttimeAwakenings.isEmpty())
+        assertEquals(RestPattern.FRAGMENTED, result.restPattern) // the later quiet is a separate rest
+    }
+
+    @Test
+    fun wakeLongerThanCap_isNeverAnInterruption() {
+        // Sleep 22:12–00:00, awake with the phone 00:00–03:47 (> 3h), sleep 03:47–10:00.
+        val events = use(10 * M) + activeFrom(2 * H, 5 * H + 46 * M) + fill(12 * H, 20 * H, 80L)
+        val result = analyzer.analyze(events, anchors)
+
+        val episode = result.mainRestEpisode!!
+        assertEquals(5 * H + 47 * M, episode.startMillis) // the earlier block is NOT joined
+        assertTrue(result.nighttimeAwakenings.isEmpty())
+    }
+
+    @Test
+    fun briefCheckInsideReturningQuiet_stillCountsAsLongReturn() {
+        // Sleep 22:12–01:00, awake 01:00–02:17 (77 min), quiet 02:17–04:00, a 2-min check at 04:00,
+        // quiet 04:02–07:00. The returning quiet is 4h43m in total (the check doesn't break it).
+        val events = use(10 * M) + activeFrom(3 * H, 4 * H + 30 * M) + use(6 * H) + fill(9 * H, 20 * H, 80L)
+        val result = analyzer.analyze(events, anchors)
+
+        val episode = result.mainRestEpisode!!
+        assertEquals(12 * M, episode.startMillis)
+        assertEquals(9 * H, episode.endMillis)
+        assertEquals(2, result.nighttimeAwakenings.size)
     }
 
     @Test

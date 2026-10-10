@@ -74,8 +74,8 @@ At-a-glance summary of the **latest complete night**.
 
 - **Source:** newest `NightEntity` with `collectedAt ≥ windowEnd` (add `getLatestComplete()` or pick
   from `getAllSummaries()`).
-- **Content:** date (`nightOf`); quiet window `start–end`; duration; data-availability chip
-  (`confidence`); pattern chip (`restPattern`); interruptions (`awakenings.size`); pre-sleep phone use
+- **Content:** date (`nightOf`); quiet window `start–end`; duration (net of interruptions);
+  pattern chip (`restPattern`); interruptions (`awakenings.size`); pre-sleep phone use
   (`preSleepPhoneTimeMillis`). Optional link → Last Night.
 - **No greeting** (no account — decided).
 
@@ -90,8 +90,8 @@ List of saved nights; tap → Night Report for that night.
 
 - **Source:** `getAllSummaries()` (the projection we built — no heavy events loaded).
 - **Row:** duration · window `start–end` · date (`nightOf`) · status dot · pattern chip · mini bar.
-  - Status dot / chip ← `restPattern` (green = רצוף/CONSOLIDATED, amber = מקוטע/FRAGMENTED) and
-    `confidence` (data availability). Newest first.
+  - Status dot / chip ← `restPattern` (green = רצוף/CONSOLIDATED, amber = מקוטע/FRAGMENTED).
+    Newest first.
 - **Tap** → `getByNight(nightOf)` → Night Report.
 
 ## 4. מידע נוסף — More info (was "הגדרות")
@@ -116,7 +116,7 @@ joined with the night's `MorningReport`.
 | Section | Source |
 | --- | --- |
 | Hero: owl + "דו"ח פעילות יומי" + date + back | `nightOf` |
-| Chips: data availability · pattern | `confidence`, `restPattern` |
+| Chip: pattern (the data-availability chip was removed 2026-10-10) | `restPattern` |
 | Summary sentence | templated from `restPattern` + quiet duration |
 | **Timeline** (read-only in v1): axis `windowStart → collectedAt`; quiet block(s); pre-quiet activity (estimated) | `mainRestEpisode`/`primaryRest`, events; footnote "הערכה גסה". ("ערוך זמנים" deferred — see decisions.) |
 | Card: פעילות אחרונה | quiet start = `phoneDown` |

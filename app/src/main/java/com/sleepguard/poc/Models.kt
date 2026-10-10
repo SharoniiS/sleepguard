@@ -27,7 +27,7 @@ data class RawScreenEvent(
 // SleepGuard MVP pattern analysis (NightPatternAnalyzer)
 //
 // All thresholds live in AnalysisConfig so they can be tuned without touching
-// logic. The absolute time boundaries of the official window (yesterday 22:00 ->
+// logic. The absolute time boundaries of the official window (yesterday 18:00 ->
 // today 18:00, plus the 04:00/06:00/12:00 anchors) live in WindowAnchors, which
 // is computed once per run from the device timezone and passed into the analyzer.
 // Keeping anchors out of the analyzer keeps it a pure, timezone-free function.
@@ -38,10 +38,20 @@ data class RawScreenEvent(
  * the name says otherwise. Defaults are the approved SleepGuard MVP values.
  */
 data class AnalysisConfig(
-    /** A session counts as "real use" if screen-on lasted at least this long... */
+    /**
+     * FALLBACK ONLY. A screen-on counts as "real use" only while the phone is unlocked (see
+     * [unlockCarryOverMinutes]); a lit but locked screen (alarm, incoming call, notification) never
+     * does. When the input has NO lock/unlock events at all (a phone without a lock screen), that
+     * rule cannot work, so a screen-on lasting at least this long counts instead.
+     */
     val meaningfulMinScreenOnSeconds: Long = 60L,
-    /** ...OR (when true) the device was unlocked (KEYGUARD_HIDDEN) during it. */
-    val treatUnlockAsMeaningful: Boolean = true,
+    /**
+     * A screen-on with no unlock of its own still counts as real use when the phone is still
+     * unlocked from before (no lock event since the last unlock) — e.g. the "lock after X minutes"
+     * setting — but for at most this long since the screen went off / the unlock, in case a lock
+     * event was missed.
+     */
+    val unlockCarryOverMinutes: Long = 30L,
 
     val microQuietMinMinutes: Long = 20L,      // 20–90 min  -> MICRO_QUIET_BLOCK
     val shortSleepMinMinutes: Long = 90L,      // 90 min–4h  -> SHORT_SLEEP_LIKE_BLOCK
@@ -51,8 +61,19 @@ data class AnalysisConfig(
 
     /** preSleepPhoneTime = REAL_USE time in this many minutes before phoneDownTime. */
     val preSleepLookbackMinutes: Long = 120L,
-    /** A REAL_USE interruption no longer than this, between two sleep-like blocks, is an awakening. */
-    val awakeningMaxMinutes: Long = 30L,
+    /**
+     * Activity between two sleep-like blocks — from the first touch until quiet returns — no longer
+     * than this is an interruption: the night continues across it.
+     */
+    val awakeningMaxMinutes: Long = 60L,
+    /**
+     * Longer activity (up to [longInterruptionMaxMinutes]) is still a "long interruption" — the
+     * night continues — if the quiet that follows lasts at least [longReturnMinMinutes] (brief
+     * interruptions inside that quiet do not break it). Otherwise it is the final wake.
+     */
+    val longReturnMinMinutes: Long = 180L,
+    /** Activity longer than this always ends the night (e.g. a 5h awake morning before a midday quiet). */
+    val longInterruptionMaxMinutes: Long = 180L,
     /** If the window opens with a quiet stretch at least this long, phone-down is unobservable. */
     val windowOpensInQuietMinMinutes: Long = 90L
 )
@@ -62,7 +83,7 @@ data class AnalysisConfig(
  * Using absolute timestamps (not hour-of-day) removes all across-midnight ambiguity.
  */
 data class WindowAnchors(
-    val windowStart: Long,     // yesterday 22:00
+    val windowStart: Long,     // yesterday 18:00 (see NightWindow)
     val morningEarliest: Long, // today 04:00  (DELAYED earliest start)
     val morningStart: Long,    // today 06:00  (MORNING_RECOVERY earliest start)
     val noon: Long,            // today 12:00  (DELAYED latest start / DAYTIME_RECOVERY start)
@@ -114,7 +135,9 @@ enum class AnalysisFlag {
     NO_MORNING_INTERACTION,
     ACTIVE_NIGHT,
     DELAYED_PRIMARY_SLEEP,
-    MULTIPLE_SLEEP_BLOCKS
+    MULTIPLE_SLEEP_BLOCKS,
+    /** No lock/unlock events at all: real use fell back to the screen-on duration rule. */
+    NO_LOCK_EVENTS
 }
 
 // ---------------------------------------------------------------------------
@@ -132,8 +155,8 @@ enum class RestRole {
 
 /** Schedule-agnostic verdict for the window. */
 enum class RestPattern {
-    CONSOLIDATED,   // one dominant rest period, <= 1 awakening
-    FRAGMENTED,     // multiple rest periods and/or several awakenings
+    CONSOLIDATED,   // one dominant rest period, <= 1 short interruption
+    FRAGMENTED,     // multiple rest periods, several interruptions, or one long (> awakeningMax) interruption
     MINIMAL_REST    // no sleep-like block anywhere in the window
 }
 
@@ -145,8 +168,11 @@ data class RestPeriod(
 
 /**
  * 0.3: the bridged MAIN REST EPISODE — the primary block extended across sleep-like blocks that are
- * joined by short (<= awakeningMaxMinutes) interruptions. It spans brief awakenings, so the headline
- * and History display THIS as the central sleep. `primaryRest` stays the single longest block.
+ * joined by interruptions (see [AnalysisConfig.awakeningMaxMinutes] / long-interruption rule). It
+ * spans awakenings, so the headline and History display THIS as the central sleep. `primaryRest`
+ * stays the single longest block.
+ *
+ * [durationMillis] is the NET rest time: (end - start) minus the time of the interruptions inside it.
  */
 data class MainRestEpisode(
     val startMillis: Long,
