@@ -114,11 +114,17 @@ internal fun NightReport(
 
 // ---------------------------------------------------------------- timeline (read-only, v1)
 
+private const val TIMELINE_PAD_MS = 2 * 60 * 60 * 1000L
+
 @Composable
 private fun TimelineBar(record: NightRecord) {
     val q = quiet(record)
-    val axisStart = record.windowStartMillis
-    val axisEnd = maxOf(record.collectedAtMillis, q?.second ?: record.windowEndMillis)
+    // Zoom the axis to the rest block plus two hours each side (inside the 18:00–18:00 window), so a
+    // normal night fills the bar instead of a sliver of a 24-hour span.
+    val axisStart = q?.let { maxOf(record.windowStartMillis, it.first - TIMELINE_PAD_MS) }
+        ?: record.windowStartMillis
+    val axisEnd = q?.let { minOf(maxOf(record.windowEndMillis, it.second), it.second + TIMELINE_PAD_MS) }
+        ?: maxOf(record.collectedAtMillis, record.windowEndMillis)
     val total = (axisEnd - axisStart).coerceAtLeast(1L).toFloat()
     Column(
         Modifier.fillMaxWidth()

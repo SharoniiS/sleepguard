@@ -270,6 +270,8 @@ Android 13+ themed icons. Store icon: `docs/play-store/icon-512.png`, same crop.
   `allowMainThreadQueries()` stays only because the debug `MainActivity` still reads synchronously.
 - "מידע נוסף": plain-language data-source and privacy copy (no internet, no account, uninstall deletes
   everything) and a poster card at the end (the splash art; tap opens it full screen, pinch to zoom).
+- Night Report timeline: the axis now spans the rest block ±2h (clamped to the night window) instead of
+  18:00 → collection time, which squeezed a normal night into a third of the bar with 18:00–18:50 labels.
 
 ---
 
