@@ -261,6 +261,18 @@ layer; the visible 72dp centre is the crop the user approved, the outer margin i
 (its crescent moon never rendered: both arcs were identical). The monochrome vector stays for
 Android 13+ themed icons. Store icon: `docs/play-store/icon-512.png`, same crop.
 
+**2026-10-11 — Google Play readiness, Phase 2 (first upload).** On `claude/project-thread-rc68cy`:
+- `versionName` **1.0.0** (`versionCode` 1); `buildConfig true` so "מידע נוסף" shows
+  `BuildConfig.VERSION_NAME` instead of a hard-coded "1.0".
+- Morning-report reads/writes moved off the main thread: `SleepViewModel.getReport`/`saveReport` are
+  `suspend` (IO); `SleepApp.WithReport` loads the report with `produceState` before showing the report
+  or questionnaire; Save waits for the write before popping back. `addMedication` runs on IO.
+  `allowMainThreadQueries()` stays only because the debug `MainActivity` still reads synchronously.
+- "מידע נוסף": plain-language data-source and privacy copy (no internet, no account, uninstall deletes
+  everything) and a poster card at the end (the splash art; tap opens it full screen, pinch to zoom).
+- Night Report timeline: the axis now spans the rest block ±2h (clamped to the night window) instead of
+  18:00 → collection time, which squeezed a normal night into a third of the bar with 18:00–18:50 labels.
+
 ---
 
 ## 1. Product context (the "why")
