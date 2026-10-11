@@ -9,6 +9,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -90,8 +91,11 @@ class SleepViewModel(app: Application) : AndroidViewModel(app) {
     fun addMedication(name: String) {
         val n = name.trim()
         if (n.isEmpty()) return
-        medicationDao.insert(MedicationEntity(n))
-        savedMedications = medicationDao.getAll()
+        viewModelScope.launch(Dispatchers.IO) {
+            medicationDao.insert(MedicationEntity(n))
+            val all = medicationDao.getAll()
+            withContext(Dispatchers.Main) { savedMedications = all }
+        }
     }
 
     /** Refresh off the main thread (e.g. from onResume after returning from Settings). */
@@ -102,11 +106,13 @@ class SleepViewModel(app: Application) : AndroidViewModel(app) {
     fun openUsageAccessSettings(activity: Activity): Boolean =
         usageAccess.openUsageAccessSettings(activity)
 
-    /** The morning self-report for a night, or null if not filled. */
-    fun getReport(nightOf: String): MorningReportEntity? = morningRepo.get(nightOf)
+    /** The morning self-report for a night, or null if not filled. Reads off the main thread. */
+    suspend fun getReport(nightOf: String): MorningReportEntity? =
+        withContext(Dispatchers.IO) { morningRepo.get(nightOf) }
 
-    /** Save (insert/replace) a night's morning self-report. */
-    fun saveReport(report: MorningReportEntity) = morningRepo.save(report)
+    /** Save (insert/replace) a night's morning self-report. Writes off the main thread. */
+    suspend fun saveReport(report: MorningReportEntity) =
+        withContext(Dispatchers.IO) { morningRepo.save(report) }
 
     private fun hasRest(r: NightRecord) = r.mainRestEpisode != null || r.primaryRest != null
 

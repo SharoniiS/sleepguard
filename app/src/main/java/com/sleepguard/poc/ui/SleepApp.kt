@@ -1,6 +1,17 @@
 package com.sleepguard.poc.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import com.sleepguard.poc.R
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -40,8 +51,12 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -54,7 +69,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.sleepguard.poc.BuildConfig
 import com.sleepguard.poc.Last24hActivity
+import com.sleepguard.poc.MorningReportEntity
 import com.sleepguard.poc.NightRecord
 import com.sleepguard.poc.SleepViewModel
 import java.time.DayOfWeek
@@ -110,23 +127,43 @@ fun SleepApp(vm: SleepViewModel, onOpenSettings: () -> Unit) {
                         Tab.LAST -> {
                             val latest = vm.latestComplete
                             if (latest != null)
-                                NightReport(latest, vm.getReport(latest.nightOf), onBack = null) {
-                                    stack.add(Dest.Quest(latest))
+                                WithReport(vm, latest.nightOf) { report ->
+                                    NightReport(latest, report, onBack = null) {
+                                        stack.add(Dest.Quest(latest))
+                                    }
                                 }
                             else Padded { CenteredMessage("אין עדיין לילה שלם להצגה.") }
                         }
                     }
                     is Dest.Report ->
-                        NightReport(d.night, vm.getReport(d.night.nightOf), onBack = { back() }) {
-                            stack.add(Dest.Quest(d.night))
+                        WithReport(vm, d.night.nightOf) { report ->
+                            NightReport(d.night, report, onBack = { back() }) {
+                                stack.add(Dest.Quest(d.night))
+                            }
                         }
                     is Dest.Quest ->
-                        QuestionnaireScreen(d.night.nightOf, vm.getReport(d.night.nightOf), vm) { back() }
+                        WithReport(vm, d.night.nightOf) { report ->
+                            QuestionnaireScreen(d.night.nightOf, report, vm) { back() }
+                        }
                 }
             }
         }
     }
 }
+
+/** Reads a night's morning report off the main thread and shows [content] once it is loaded. */
+@Composable
+private fun WithReport(
+    vm: SleepViewModel,
+    nightOf: String,
+    content: @Composable (MorningReportEntity?) -> Unit
+) {
+    val loaded by produceState<LoadedReport?>(null, nightOf) { value = LoadedReport(vm.getReport(nightOf)) }
+    loaded?.let { content(it.report) }
+}
+
+/** Wrapper so "loaded, no report" (null report) differs from "not loaded yet" (null wrapper). */
+private class LoadedReport(val report: MorningReportEntity?)
 
 private sealed interface Dest {
     data class TabDest(val tab: Tab) : Dest
@@ -405,20 +442,67 @@ private fun MoreInfoScreen() {
     ) {
         HeroBanner("מידע נוסף")
         InfoCard(
-            "🌙", "SleepGuard · גרסה 1.0",
+            "🌙", "SleepGuard · גרסה ${BuildConfig.VERSION_NAME}",
             "SleepGuard עוקבת אחר פעילות הטלפון בלילה. האפליקציה אינה מאבחנת, אינה מודדת שינה, " +
                 "ואינה מהווה תחליף לייעוץ רפואי. מטרתה לאפשר מעקב תיאורי אחר דפוסי פעילות."
         )
         InfoCard(
             "📊", "מקור הנתונים",
-            "נתוני הפעילות נאספים על ידי הרכיב הנייטיבי של האפליקציה, שמנטר את זמני הדלקת/כיבוי " +
-                "המסך והנעילה. לא נאסף תוכן, מידע אישי, או נתוני אפליקציות."
+            "האפליקציה קוראת רק את הזמנים שבהם המסך נדלק וכבה ושבהם הטלפון ננעל ונפתח, כפי " +
+                "שאנדרואיד כבר רושם אותם. היא לא קוראת תוכן, מידע אישי או נתונים מאפליקציות אחרות."
         )
         InfoCard(
             "🔒", "פרטיות",
-            "• לא נאסף מידע אישי מזהה\n• הנתונים נשמרים במכשיר בלבד ואינם נשלחים לשום מקום\n" +
-                "• תוכן המסך אינו נקרא או נשמר"
+            "• כל המידע נשמר בטלפון שלך בלבד\n" +
+                "• לאפליקציה אין גישה לאינטרנט, ולכן שום מידע לא יוצא מהמכשיר\n" +
+                "• אין חשבון ואין התחברות\n" +
+                "• הסרת האפליקציה מוחקת את כל המידע שנשמר בה"
         )
+        PosterCard()
+    }
+}
+
+/** The SleepGuard poster as a card; a tap opens it full screen with pinch-to-zoom. */
+@Composable
+private fun PosterCard() {
+    var open by remember { mutableStateOf(false) }
+    Image(
+        painter = painterResource(R.drawable.splash),
+        contentDescription = "הפוסטר של SleepGuard",
+        contentScale = ContentScale.FillWidth,
+        modifier = Modifier.fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .border(1.dp, Color(0x14FFFFFF), RoundedCornerShape(16.dp))
+            .clickable { open = true }
+    )
+    if (open) {
+        Dialog(
+            onDismissRequest = { open = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            var scale by remember { mutableStateOf(1f) }
+            var offset by remember { mutableStateOf(Offset.Zero) }
+            Box(
+                Modifier.fillMaxSize().background(SgBackground)
+                    .pointerInput(Unit) {
+                        detectTransformGestures { _, pan, zoom, _ ->
+                            scale = (scale * zoom).coerceIn(1f, 5f)
+                            offset = if (scale == 1f) Offset.Zero else offset + pan
+                        }
+                    }
+                    .pointerInput(Unit) { detectTapGestures(onTap = { open = false }) }
+            ) {
+                Image(
+                    painter = painterResource(R.drawable.splash),
+                    contentDescription = "הפוסטר של SleepGuard",
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxSize().graphicsLayer {
+                        scaleX = scale; scaleY = scale
+                        translationX = offset.x; translationY = offset.y
+                    }
+                )
+            }
+        }
     }
 }
 

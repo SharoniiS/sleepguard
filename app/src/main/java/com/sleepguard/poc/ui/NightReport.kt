@@ -36,6 +36,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -48,6 +49,7 @@ import androidx.compose.ui.unit.sp
 import com.sleepguard.poc.MorningReportEntity
 import com.sleepguard.poc.NightRecord
 import com.sleepguard.poc.SleepViewModel
+import kotlinx.coroutines.launch
 import com.sleepguard.poc.StoredEvent
 
 @Composable
@@ -312,6 +314,8 @@ internal fun QuestionnaireScreen(
 
     var expanded by remember { mutableStateOf(false) }
     var showAdd by remember { mutableStateOf(false) }
+    var saving by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     Column(
         Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()),
@@ -376,19 +380,23 @@ internal fun QuestionnaireScreen(
 
         Button(
             onClick = {
-                vm.saveReport(
-                    MorningReportEntity(
-                        nightOf = nightOf,
-                        nightmares = nightmares,
-                        medications = meds,
-                        cannabis = cannabis,
-                        alcohol = alcohol,
-                        note = note.ifBlank { null },
-                        updatedAtMillis = System.currentTimeMillis()
+                saving = true
+                scope.launch {
+                    vm.saveReport(
+                        MorningReportEntity(
+                            nightOf = nightOf,
+                            nightmares = nightmares,
+                            medications = meds,
+                            cannabis = cannabis,
+                            alcohol = alcohol,
+                            note = note.ifBlank { null },
+                            updatedAtMillis = System.currentTimeMillis()
+                        )
                     )
-                )
-                onSaved()
+                    onSaved()
+                }
             },
+            enabled = !saving,
             modifier = Modifier.fillMaxWidth()
         ) { Text("שמור") }
     }
