@@ -1,0 +1,146 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 3,
+    "identityHash": "14772b0daf0abf37289b00337f52edc2",
+    "entities": [
+      {
+        "tableName": "nights",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`nightOf` TEXT NOT NULL, `windowStartMillis` INTEGER NOT NULL, `windowEndMillis` INTEGER NOT NULL, `collectedAtMillis` INTEGER NOT NULL, `restPattern` TEXT NOT NULL, `confidence` TEXT NOT NULL, `recordJson` TEXT NOT NULL, PRIMARY KEY(`nightOf`))",
+        "fields": [
+          {
+            "fieldPath": "nightOf",
+            "columnName": "nightOf",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "windowStartMillis",
+            "columnName": "windowStartMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "windowEndMillis",
+            "columnName": "windowEndMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "collectedAtMillis",
+            "columnName": "collectedAtMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "restPattern",
+            "columnName": "restPattern",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "confidence",
+            "columnName": "confidence",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "recordJson",
+            "columnName": "recordJson",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "nightOf"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "morning_reports",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`nightOf` TEXT NOT NULL, `nightmares` INTEGER, `medications` TEXT, `cannabis` INTEGER, `alcohol` INTEGER, `note` TEXT, `updatedAtMillis` INTEGER NOT NULL, PRIMARY KEY(`nightOf`))",
+        "fields": [
+          {
+            "fieldPath": "nightOf",
+            "columnName": "nightOf",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "nightmares",
+            "columnName": "nightmares",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "medications",
+            "columnName": "medications",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "cannabis",
+            "columnName": "cannabis",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "alcohol",
+            "columnName": "alcohol",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "note",
+            "columnName": "note",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "updatedAtMillis",
+            "columnName": "updatedAtMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "nightOf"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "medications",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`name` TEXT NOT NULL, PRIMARY KEY(`name`))",
+        "fields": [
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "name"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      }
+    ],
+    "views": [],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '14772b0daf0abf37289b00337f52edc2')"
+    ]
+  }
+}

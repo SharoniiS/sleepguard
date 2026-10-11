@@ -19,14 +19,14 @@ android {
     // Internal Kotlin / R package — NOT user-facing and NOT the Play identity. Left as-is to avoid a
     // wide mechanical rename; can be renamed in a separate isolated pass if desired.
     namespace 'com.sleepguard.poc'
-    compileSdk 35
+    compileSdk 36
 
     defaultConfig {
         // Permanent Google Play identity. Chosen now (pre-publish) because it CANNOT change after the
         // first release. Distinct from the internal namespace above, which is allowed.
         applicationId "com.sleepguard.app"
         minSdk 28
-        targetSdk 35
+        targetSdk 36
         versionCode 1
         versionName "0.1.0"
     }
@@ -43,11 +43,17 @@ android {
     }
 
     buildTypes {
+        debug {
+            // The legacy View debug screen (MainActivity) is enabled only in debug builds.
+            manifestPlaceholders["debugScreenEnabled"] = "true"
+        }
         release {
             // Only sign when the keystore.properties exists; otherwise leave unsigned (no broken build).
             if (keystorePropsFile.exists()) {
                 signingConfig signingConfigs.release
             }
+            // The store build ships with the legacy debug screen disabled (see AndroidManifest.xml).
+            manifestPlaceholders["debugScreenEnabled"] = "false"
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
@@ -70,6 +76,11 @@ android {
     composeOptions {
         kotlinCompilerExtensionVersion '1.5.14'
     }
+}
+
+ksp {
+    // Room exports each DB version's schema JSON here (see AppDatabase). Commit app/schemas/.
+    arg("room.schemaLocation", "$projectDir/schemas")
 }
 
 dependencies {
