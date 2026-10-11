@@ -12,6 +12,7 @@ import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import java.util.concurrent.locks.ReentrantLock
 
 /**
  * A rolling snapshot of phone activity for the window [startMillis, endMillis] — the Home
@@ -55,8 +56,27 @@ class SleepViewModel(app: Application) : AndroidViewModel(app) {
     var last24h by mutableStateOf<Last24hActivity?>(null)
         private set
 
-    /** Re-check permission, auto-collect recent nights, and reload. Call on resume. */
+    /** One refresh at a time: on app open the splash and onResume both ask for one. */
+    private val refreshLock = ReentrantLock()
+
+    /**
+     * Re-check permission, auto-collect recent nights, and reload. Call on resume. If a refresh is
+     * already running, wait for it to finish instead of collecting the same data a second time.
+     */
     fun refresh() {
+        val waited = !refreshLock.tryLock()
+        if (waited) refreshLock.lock()
+        try {
+            // After waiting, the running refresh's results are already loaded — unless it started
+            // before Usage Access was granted (e.g. just back from Settings): then it collected
+            // nothing, so collect now.
+            if (!waited || (!hasPermission && usageAccess.hasUsageAccess())) doRefresh()
+        } finally {
+            refreshLock.unlock()
+        }
+    }
+
+    private fun doRefresh() {
         hasPermission = usageAccess.hasUsageAccess()
         if (hasPermission) runCatching { collectBackfill() }
         val sorted = repo.loadAll().sortedByDescending { it.nightOf }

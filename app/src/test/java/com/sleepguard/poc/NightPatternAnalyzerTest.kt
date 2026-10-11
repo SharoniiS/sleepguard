@@ -245,7 +245,7 @@ class NightPatternAnalyzerTest {
         val result = analyzer.analyze(events, anchors)
 
         assertEquals(NightPattern.CONSOLIDATED_SLEEP_LIKE, result.nightPattern)
-        assertEquals(QuietBlockLabel.MAIN_SLEEP_LIKE_BLOCK, result.longestQuietBlock?.label)
+        assertEquals(QuietBlockLabel.MAIN_SLEEP_LIKE_BLOCK, result.primaryRest?.block?.label)
         assertEquals(Confidence.HIGH, result.confidence)
         assertTrue(result.nighttimeAwakenings.isEmpty())
         assertFalse(result.flags.contains(AnalysisFlag.WINDOW_OPENS_IN_QUIET))
@@ -258,7 +258,7 @@ class NightPatternAnalyzerTest {
         val result = analyzer.analyze(events, anchors)
 
         assertEquals(NightPattern.ACTIVE_NIGHT, result.nightPattern)
-        assertNull(result.longestQuietBlock)
+        assertNull(result.primaryRest)
         assertEquals(Confidence.LOW, result.confidence)
         assertTrue(result.flags.contains(AnalysisFlag.ACTIVE_NIGHT))
     }
@@ -286,7 +286,7 @@ class NightPatternAnalyzerTest {
         val result = analyzer.analyze(events, anchors)
 
         assertEquals(NightPattern.RECOVERY_SLEEP, result.nightPattern)
-        assertEquals(QuietBlockLabel.MORNING_RECOVERY_SLEEP, result.longestQuietBlock?.label)
+        assertEquals(QuietBlockLabel.MORNING_RECOVERY_SLEEP, result.primaryRest?.block?.label)
     }
 
     @Test
@@ -295,7 +295,7 @@ class NightPatternAnalyzerTest {
         val events = fill(0L, 9 * H, 60L) + use(13 * H) + fill(13 * H, 20 * H, 80L)
         val result = analyzer.analyze(events, anchors)
 
-        assertEquals(QuietBlockLabel.DELAYED_SLEEP_LIKE, result.longestQuietBlock?.label)
+        assertEquals(QuietBlockLabel.DELAYED_SLEEP_LIKE, result.primaryRest?.block?.label)
         assertEquals(NightPattern.DELAYED_SLEEP_LIKE, result.nightPattern)
         assertTrue(result.flags.contains(AnalysisFlag.DELAYED_PRIMARY_SLEEP))
     }
@@ -464,10 +464,11 @@ class NightPatternAnalyzerTest {
     }
 
     @Test
-    fun primaryRest_matchesLongestQuietBlock() {
-        val result = analyzer.analyze(use(10 * 60_000L) + fill(9 * H, 20 * H, 80L), anchors)
+    fun primaryRest_isTheLongestSleepLikeBlock() {
+        val result = analyzer.analyze(use(10 * 60_000L) + use(5 * H) + fill(9 * H, 20 * H, 80L), anchors)
 
-        assertEquals(result.longestQuietBlock, result.primaryRest?.block)
+        val longest = result.quietBlocks.filter { it.isSleepLike }.maxByOrNull { it.durationMillis }
+        assertEquals(longest, result.primaryRest?.block)
     }
 
     @Test

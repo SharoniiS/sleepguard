@@ -13,7 +13,4 @@ val SgSecondary = Color(0xFF243C7E)
 val SgBorder = Color(0xFF2A3350)
 
 // Status / accents
-val SgGreen = Color(0xFF22C35D)   // consolidated
-val SgAmber = Color(0xFFF6A823)   // fragmented
 val SgCyan = Color(0xFF3CC1DD)    // awakenings
-val SgPurple = Color(0xFFA78BFA)  // pre-sleep use

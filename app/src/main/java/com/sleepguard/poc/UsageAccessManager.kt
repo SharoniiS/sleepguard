@@ -2,6 +2,7 @@ package com.sleepguard.poc
 
 import android.app.Activity
 import android.app.AppOpsManager
+import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.os.Process
@@ -37,21 +38,23 @@ class UsageAccessManager(private val context: Context) {
      */
     fun openUsageAccessSettings(activity: Activity): Boolean {
         // First try the dedicated Usage Access settings screen.
-        val usageIntent = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
-        if (usageIntent.resolveActivity(activity.packageManager) != null) {
-            activity.startActivity(usageIntent)
-            return true
-        }
+        if (tryStart(activity, Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))) return true
 
         // Fallback: open the general app settings so the user can find it manually.
         val appSettings = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
             data = android.net.Uri.fromParts("package", activity.packageName, null)
         }
-        if (appSettings.resolveActivity(activity.packageManager) != null) {
-            activity.startActivity(appSettings)
-            return true
-        }
+        return tryStart(activity, appSettings)
+    }
 
-        return false
+    /**
+     * Launch directly and treat "no handler" as failure. (Not resolveActivity(): under Android 11+
+     * package-visibility rules it can report no handler for a settings screen that does exist.)
+     */
+    private fun tryStart(activity: Activity, intent: Intent): Boolean = try {
+        activity.startActivity(intent)
+        true
+    } catch (_: ActivityNotFoundException) {
+        false
     }
 }

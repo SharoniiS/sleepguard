@@ -13,9 +13,4 @@ class MorningReportRepository(context: Context) {
     fun get(nightOf: String): MorningReportEntity? = dao.getByNight(nightOf)
 
     fun save(report: MorningReportEntity) = dao.upsert(report)
-
-    /** Set of nights that already have a self-report (for History "filled" badges). */
-    fun filledNights(): Set<String> = dao.getFilledNights().toSet()
-
-    fun clearAll() = dao.clearAll()
 }
