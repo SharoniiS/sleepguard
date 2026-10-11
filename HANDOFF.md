@@ -5,7 +5,7 @@
 > (user/run guide) and the source. If anything here conflicts with the code, the code
 > wins — update this file.
 
-Last updated: 2026-10-10.
+Last updated: 2026-10-11.
 
 ---
 
@@ -249,6 +249,17 @@ is the one promoted, so these land before the first upload. One commit each on
   `versionName 1.0.0` read from `BuildConfig`, privacy-card copy, and a zoomable poster card at the
   end of "מידע נוסף". If `MainActivity` is deleted there, the `debugScreenEnabled` placeholder and
   `android:enabled` lines above go with it, and `allowMainThreadQueries()` can be dropped.
+- Merged as PR #2 (2026-10-11), after the cleanup agent ran 93/93 tests, debug + release builds and
+  lint on it. Play Store material lives in `docs/play-store/` (listing texts, feature graphic,
+  console-form answers, store icon). Copy rule from the user: calm, plain Hebrew, no em dashes, no
+  slogan-style lines.
+
+**2026-10-11 — Launcher + store icon from the owl artwork.** The adaptive-icon foreground is now a
+bitmap of the guardian owl (`res/mipmap-{m,h,xh,xxh,xxxh}dpi/ic_launcher_foreground.webp`, 108dp
+layer; the visible 72dp centre is the crop the user approved, the outer margin is dark sky only).
+`ic_launcher_background` → `#081232` (the art's edge colour). The old vector foreground was deleted
+(its crescent moon never rendered: both arcs were identical). The monochrome vector stays for
+Android 13+ themed icons. Store icon: `docs/play-store/icon-512.png`, same crop.
 
 ---
 
