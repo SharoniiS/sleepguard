@@ -64,13 +64,13 @@ class SleepViewModel(app: Application) : AndroidViewModel(app) {
      * already running, wait for it to finish instead of collecting the same data a second time.
      */
     fun refresh() {
-        if (!refreshLock.tryLock()) {
-            refreshLock.lock()   // wait for the running refresh; its results are already loaded
-            refreshLock.unlock()
-            return
-        }
+        val waited = !refreshLock.tryLock()
+        if (waited) refreshLock.lock()
         try {
-            doRefresh()
+            // After waiting, the running refresh's results are already loaded — unless it started
+            // before Usage Access was granted (e.g. just back from Settings): then it collected
+            // nothing, so collect now.
+            if (!waited || (!hasPermission && usageAccess.hasUsageAccess())) doRefresh()
         } finally {
             refreshLock.unlock()
         }
