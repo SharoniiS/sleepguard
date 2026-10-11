@@ -71,7 +71,7 @@ exits at the Home root. Full detail in [`UI_FLOW_DESIGN.md`](UI_FLOW_DESIGN.md).
 
 ## 6. Tech stack & build
 
-- **Kotlin 1.9.24**, single module. `compileSdk/targetSdk 35`, `minSdk 28`, JDK 17.
+- **Kotlin 1.9.24**, single module. `compileSdk/targetSdk 36`, `minSdk 28`, JDK 17.
 - **Jetpack Compose** (BOM 2024.06.00, compiler ext 1.5.14, Material3) for the product UI; the legacy
   POC screen is View/XML + ViewBinding.
 - **Room 2.6.1** via **KSP** for persistence.
@@ -107,13 +107,17 @@ exits at the Home root. Full detail in [`UI_FLOW_DESIGN.md`](UI_FLOW_DESIGN.md).
     experimental ExposedDropdown API).
 11. **Store-readiness:** permanent `applicationId`, app name, `allowBackup=false`, keystore-based
     release signing — chosen pre-publish because `applicationId` can't change after the first release.
+12. **Play release hardening (2026-10-10):** targetSdk 36 (Play requirement); the legacy debug screen
+    is disabled in release builds (`debugScreenEnabled` placeholder), so the store build has no
+    clear/export path; Room schema exported from v3 on; bitmap art in `drawable-nodpi` as WebP.
+    Privacy policy lives in `docs/privacy-policy.html` (GitHub Pages).
 
 ## 8. Known temporary / follow-ups
 
 - **Collection logic is duplicated** in `MainActivity` (debug) and `SleepViewModel` — intentional
   during the View→Compose move; collapses to one copy when `MainActivity` is retired.
 - `allowMainThreadQueries()` (tiny data set) — move reads to Flow/coroutines in a later pass.
-- `exportSchema=false` — turn on (+ `room.schemaLocation`) before the next schema change.
+- Room schema export is on (`app/schemas/`) — commit the generated v3 JSON after the first build.
 - DAO/migration tests need Robolectric/instrumented (the pure JVM suite has **43** tests).
 - Visual design is a **placeholder** dark theme; a real design pass (and the owl artwork) is pending.
 - Internal Kotlin package is still `com.sleepguard.poc` (not user-facing); optional rename later.

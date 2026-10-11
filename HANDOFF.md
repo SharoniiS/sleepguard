@@ -5,7 +5,7 @@
 > (user/run guide) and the source. If anything here conflicts with the code, the code
 > wins — update this file.
 
-Last updated: 2026-06-27.
+Last updated: 2026-10-10.
 
 ---
 
@@ -223,6 +223,32 @@ Details + rationale: `NIGHT_DETECTION_LOGIC_SPEC.md` §15. Summary:
   are re-analyzed once (`BackfillPolicy`), with a retention guard (stored events win if the fresh
   read is thinner). Older nights keep their old results. `STORAGE_SCHEMA_VERSION` → 3 (additive).
 - Tests: 48 → 93 (new `NightScenarioTest` pins 18 whole-night scenarios in clock time).
+
+**2026-10-10 — Google Play readiness, Phase 1.** The user has an active *personal* Play developer
+account → a 14-day closed test with ≥12 testers is required before production, and the tested build
+is the one promoted, so these land before the first upload. One commit each on
+`claude/jolly-euler-t0507i`:
+- **targetSdk/compileSdk 35 → 36** (Play requirement for new apps since 2026-08-31). No
+  `windowOptOutEdgeToEdgeEnforcement`, no `onBackPressed` overrides → no edge-to-edge/back impact.
+  `AppActivity` now calls `enableEdgeToEdge(SystemBarStyle.dark(TRANSPARENT) …)`: the Compose UI is
+  always dark, so bar icons stay light in device light mode too; Android 9–14 now draw edge-to-edge
+  like 15+ (Scaffold applies the insets).
+- **Debug screen disabled in release:** `MainActivity` gets `android:enabled="${debugScreenEnabled}"`
+  (debug `true`, release `false`). Debug + the adb command unchanged. Release therefore has **no
+  export path**.
+- **Room `exportSchema = true`** + KSP `room.schemaLocation = app/schemas`. ⚠️ Commit the generated
+  `app/schemas/com.sleepguard.poc.AppDatabase/3.json` after the first Android Studio build.
+- **Images:** `splash` + `owl_banner` → WebP q92 in `res/drawable-nodpi/` (no density upscaling;
+  1.9 MB → 132 KB, 855 KB → 55 KB, visually identical); unused `owl_full` / `owl_circle` deleted.
+- **Privacy policy:** `docs/privacy-policy.html` (Hebrew, RTL) for GitHub Pages; developer name +
+  contact email are placeholders.
+- NOT built here: the container's network policy blocks `dl.google.com`, so no Android SDK. Build +
+  run tests in Android Studio.
+- **Phase 2 (waits for the other agent's `claude/code-cleanup` branch — it touches
+  `SleepViewModel.kt` and may delete `MainActivity`):** questionnaire DB access off the main thread,
+  `versionName 1.0.0` read from `BuildConfig`, privacy-card copy, and a zoomable poster card at the
+  end of "מידע נוסף". If `MainActivity` is deleted there, the `debugScreenEnabled` placeholder and
+  `android:enabled` lines above go with it, and `allowMainThreadQueries()` can be dropped.
 
 ---
 

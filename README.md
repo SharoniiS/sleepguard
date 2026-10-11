@@ -62,7 +62,7 @@ The data-collection engine and analyzer are validated with a suite of unit tests
 - Pure-JVM analysis core (fully unit-tested, no Android dependencies)
 - Local persistence on-device with **Room** (SQLite)
 - View / XML UI with ViewBinding (Jetpack Compose UI in progress)
-- `compileSdk 35` · `targetSdk 35` · `minSdk 28` · JDK 17
+- `compileSdk 36` · `targetSdk 36` · `minSdk 28` · JDK 17
 
 > The app interface is in **Hebrew** (its initial audience); the codebase and docs are in English.
 
