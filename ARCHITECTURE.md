@@ -45,8 +45,6 @@ around it.
 | `MorningReportEntity/Dao/Repository.kt` | Per-night user self-report (questionnaire) |
 | `MedicationEntity/Dao.kt` | User's reusable medication names |
 | `AppDatabase.kt` | Room DB (v3): tables `nights`, `morning_reports`, `medications` + migrations |
-| `InteractionHistory.kt` | `longInactivities` helper (estimated-sleep blocks) |
-| `MainActivity.kt` | **Legacy View POC, debug-only** (no longer the launcher) — holds the backup-export / clear / backfill dev tools, reached via `adb` |
 
 ## 4. Data model (Room, on-device)
 
@@ -74,8 +72,8 @@ exits at the Home root. Full detail in [`UI_FLOW_DESIGN.md`](UI_FLOW_DESIGN.md).
 ## 6. Tech stack & build
 
 - **Kotlin 1.9.24**, single module. `compileSdk/targetSdk 36`, `minSdk 28`, JDK 17.
-- **Jetpack Compose** (BOM 2024.06.00, compiler ext 1.5.14, Material3) for the product UI; the legacy
-  POC screen is View/XML + ViewBinding.
+- **Jetpack Compose** (BOM 2024.06.00, compiler ext 1.5.14, Material3) for the whole UI. (The
+  `material` / `appcompat` View libraries stay only for the XML window theme.)
 - **Room 2.6.1** via **KSP** for persistence.
 - `applicationId = com.sleepguard.app` (permanent), app name **SleepGuard**, `allowBackup=false`.
   Release signing reads a gitignored `keystore.properties` (see `keystore.properties.example`).
@@ -93,8 +91,8 @@ exits at the Home root. Full detail in [`UI_FLOW_DESIGN.md`](UI_FLOW_DESIGN.md).
    re-collecting a night never destroys the user's self-report.
 4. **UI = Jetpack Compose**, RTL. Modern, fits a richer redesign; the product was being rebuilt anyway.
 5. **Tabs = Home / Last Night / History / מידע נוסף** (renamed from "Settings" — info only, since there
-   is no account). Usage Access is handled contextually (no-permission state); export/clear stay
-   **debug-only** in the legacy `MainActivity`.
+   is no account). Usage Access is handled contextually (no-permission state). There is no
+   export/clear in the app (they lived only in the legacy debug screen, removed — see #13).
 6. **Factual wording** for the insight/summary (no soft judgments). ⚠️ Per an explicit request the
    report summary says "חלון השינה שנצפה" — this softens the earlier strict "no 'sleep' claims" rule;
    revisit if the observational principle should win.
@@ -113,15 +111,19 @@ exits at the Home root. Full detail in [`UI_FLOW_DESIGN.md`](UI_FLOW_DESIGN.md).
     is disabled in release builds (`debugScreenEnabled` placeholder), so the store build has no
     clear/export path; Room schema exported from v3 on; bitmap art in `drawable-nodpi` as WebP.
     Privacy policy lives in `docs/privacy-policy.html` (GitHub Pages).
+13. **Legacy debug screen removed (2026-10-18).** `MainActivity` (the old View/XML POC screen) and
+    everything only it used — its layouts and strings, `InteractionHistory`, `ViewInsets`, the
+    backup-export `FileProvider`, `NightRepository/NightDao.clearAll`, ViewBinding, and #12's
+    `debugScreenEnabled` placeholders — are gone. Night collection now lives only in
+    `SleepViewModel`. The JSON backup export went with it; if wanted, it returns as a feature in
+    "מידע נוסף".
 
 ## 8. Known temporary / follow-ups
 
-- **The backfill loop is duplicated** in `MainActivity` (debug) and `SleepViewModel` (the night
-  window itself is shared via `NightWindow`); collapses to one copy when `MainActivity` is retired.
 - `allowMainThreadQueries()` (tiny data set) — move reads to Flow/coroutines in a later pass.
 - Room schema export is on (`app/schemas/`); the generated v3 JSON is committed — commit each new
   version's JSON with its migration.
-- DAO/migration tests need Robolectric/instrumented (the pure JVM suite has **93** tests).
+- DAO/migration tests need Robolectric/instrumented (the pure JVM suite has **90** tests).
 - Visual design is a **placeholder** dark theme; a real design pass (and the owl artwork) is pending.
 - Internal Kotlin package is still `com.sleepguard.poc` (not user-facing); optional rename later.
 

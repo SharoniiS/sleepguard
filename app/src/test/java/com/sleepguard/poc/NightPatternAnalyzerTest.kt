@@ -509,18 +509,6 @@ class NightPatternAnalyzerTest {
         assertEquals(5 * H, result.firstUseAfterPrimaryRest)
     }
 
-    @Test
-    fun historyUsesBridgedEpisode() {
-        val events = use(10 * 60_000L) + use(5 * H) + fill(9 * H, 20 * H, 80L)
-        val result = analyzer.analyze(events, anchors)
-        val record = NightRecordMapper.toRecord(result, events, 0, "2026-06-21", 0L, AnalysisConfig())
-
-        val blocks = InteractionHistory.longInactivities(record, 4 * H)
-        // One inactivity = the bridged episode (not the shorter primary block + filtered secondary).
-        assertEquals(1, blocks.size)
-        assertEquals(record.mainRestEpisode!!.durationMillis, blocks[0].durationMillis)
-    }
-
     // ---- 1.1.0: interruption vs final wake ------------------------------
 
     private val M = 60_000L

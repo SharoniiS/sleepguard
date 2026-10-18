@@ -273,6 +273,18 @@ Android 13+ themed icons. Store icon: `docs/play-store/icon-512.png`, same crop.
 - Night Report timeline: the axis now spans the rest block ±2h (clamped to the night window) instead of
   18:00 → collection time, which squeezed a normal night into a third of the bar with 18:00–18:50 labels.
 
+**2026-10-18 — Legacy debug screen removed (user decision).** Deleted `MainActivity` (the old View/XML
+POC screen, already disabled in release since PR #2) and everything only it used: `activity_main.xml`,
+`item_night.xml`, its ~30 strings (only `app_name` remains), `InteractionHistory` (+ its 2 tests and
+`historyUsesBridgedEpisode`), `ViewInsets.kt`, the backup-export `FileProvider` + `file_paths.xml`,
+`NightRepository/NightDao.clearAll`, `viewBinding`, and PR #2's `debugScreenEnabled` placeholders +
+`android:enabled`. The JSON backup export and "clear data" went with it (store builds never had
+them). `appcompat` stays: `material` (the XML window theme) depends on it, and dropping the explicit
+line would only downgrade it to 1.6.1. Tests 93 → 90; lint 15 → 6 warnings.
+- Follow-up, NOT done here: `allowMainThreadQueries()` can now be revisited, but first audit every
+  main-thread DB access — e.g. `NightRepository`'s one-time legacy import runs in its `init`, which
+  happens when `SleepViewModel` is constructed on the main thread.
+
 ---
 
 ## 1. Product context (the "why")
