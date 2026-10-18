@@ -19,7 +19,4 @@ interface NightDao {
     /** All rows (including the blob), oldest-first. Backs the drop-in [NightRepository.loadAll]. */
     @Query("SELECT * FROM nights ORDER BY nightOf")
     fun getAll(): List<NightEntity>
-
-    @Query("DELETE FROM nights")
-    fun clearAll()
 }

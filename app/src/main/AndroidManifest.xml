@@ -12,8 +12,7 @@
         android:name="android.permission.PACKAGE_USAGE_STATS"
         tools:ignore="ProtectedPermissions" />
 
-    <!-- No INTERNET permission: the app is fully on-device. Nothing is uploaded; the only data
-         that ever leaves is a user-initiated backup file shared via the FileProvider below. -->
+    <!-- No INTERNET permission: the app is fully on-device. Nothing is uploaded or shared. -->
 
     <application
         android:allowBackup="false"
@@ -32,28 +31,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-
-        <!-- Legacy View-based POC, kept for debug (no longer the launcher). Reachable via adb in
-             DEBUG builds only:
-             adb shell am start -n com.sleepguard.app/com.sleepguard.poc.MainActivity
-             Release builds ship it disabled (debugScreenEnabled=false in app/build.gradle), so no app
-             can open its Clear / Export actions in the store build. -->
-        <activity
-            android:name=".MainActivity"
-            android:enabled="${debugScreenEnabled}"
-            android:exported="true" />
-
-        <!-- Lets the "Export backup" action share a temp JSON file from cacheDir via a content URI
-             (no Binder size limit, unlike clipboard / EXTRA_TEXT). Not exported. -->
-        <provider
-            android:name="androidx.core.content.FileProvider"
-            android:authorities="${applicationId}.fileprovider"
-            android:exported="false"
-            android:grantUriPermissions="true">
-            <meta-data
-                android:name="android.support.FILE_PROVIDER_PATHS"
-                android:resource="@xml/file_paths" />
-        </provider>
     </application>
 
 </manifest>

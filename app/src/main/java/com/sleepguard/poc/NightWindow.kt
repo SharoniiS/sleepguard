@@ -5,8 +5,8 @@ import java.time.LocalTime
 import java.time.ZoneId
 
 /**
- * The time window of one night, in the device timezone. Pure JVM (no Android) so it is unit-testable,
- * and the single copy shared by the product UI ([SleepViewModel]) and the debug screen ([MainActivity]).
+ * The time window of one night, in the device timezone. Pure JVM (no Android) so it is unit-testable;
+ * used by [SleepViewModel].
  *
  * A night is analyzed from 18:00 of the previous day to 18:00 of its morning: consecutive nights tile
  * with no gap, and a user who falls asleep before 22:00 is still seen from the moment the phone was

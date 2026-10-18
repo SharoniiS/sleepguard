@@ -8,9 +8,8 @@ import java.io.File
 /**
  * Local, app-private persistence for [NightRecord]s, backed by Room (on-device only — no network).
  *
- * The public API is intentionally unchanged from the previous file-based implementation, so callers
- * (e.g. MainActivity) are untouched. Internally each night is one Room row ([NightEntity]); the
- * canonical record is stored as JSON in that row and the summary columns index it for queries.
+ * Internally each night is one Room row ([NightEntity]); the canonical record is stored as JSON in
+ * that row and the summary columns index it for queries.
  *
  * POC note: calls run synchronously on the calling thread (Room is built with
  * `allowMainThreadQueries()`), matching the previous file store. The UI track will move reads to
@@ -29,8 +28,6 @@ class NightRepository(context: Context) {
 
     /** Insert or replace a night (one row per nightOf — no duplicates). */
     fun upsert(record: NightRecord) = dao.upsert(NightEntityMapper.toEntity(record))
-
-    fun clearAll() = dao.clearAll()
 
     /**
      * One-time migration from the pre-Room store: if `sleepguard_history.json` exists, import every

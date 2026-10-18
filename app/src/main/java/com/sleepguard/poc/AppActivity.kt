@@ -22,7 +22,7 @@ import kotlinx.coroutines.withContext
 /**
  * The product launcher — the Compose UI (4 tabs). On open it shows a brief splash (the SleepGuard
  * poster) while the latest night data is collected/organized off the main thread, then reveals the
- * app. The old View-based [MainActivity] is kept as a debug screen (no longer the launcher).
+ * app.
  */
 class AppActivity : ComponentActivity() {
 

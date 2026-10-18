@@ -29,10 +29,7 @@ data class Last24hActivity(
 /**
  * State holder for the Compose product UI. Reuses the existing data/logic classes. Synchronous for
  * now (Room runs with allowMainThreadQueries; data set is tiny) — moves to coroutines later.
- *
- * NOTE: the collection logic below is ported from [MainActivity] (the View POC kept for debug). This
- * is intentional temporary duplication during the View→Compose move; once MainActivity is retired the
- * single copy lives here.
+ * The single home of night collection (the legacy debug screen that duplicated it was removed).
  */
 class SleepViewModel(app: Application) : AndroidViewModel(app) {
 
@@ -125,7 +122,7 @@ class SleepViewModel(app: Application) : AndroidViewModel(app) {
         return if (partial) sortedDesc.firstOrNull { hasRest(it) } ?: newest else newest
     }
 
-    // ---- collection (ported from MainActivity; see class note) ----
+    // ---- collection ----
 
     /** Collect the rolling last-24h window [now-24h, now] on demand. Independent of the nightly
      *  backfill and NOT persisted — feeds the Home "last 24 hours" card. */

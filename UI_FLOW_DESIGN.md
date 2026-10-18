@@ -103,8 +103,8 @@ profile to configure.
 - **Data source:** "Android Native Component" — reads screen on/off timings only.
 - **Privacy:** the on-device bullets (no identifying data, stays on device, screen content not read).
 - **Native actions (decided):** "מידע נוסף" stays purely informational. Usage Access is handled
-  **contextually** in the no-permission state (not a setting). Export backup / Clear data stay
-  **debug/POC** actions, out of the product UI for now.
+  **contextually** in the no-permission state (not a setting). There is no Export backup / Clear
+  data (they lived only in the legacy debug screen, removed 2026-10-18).
 
 ---
 
@@ -150,9 +150,9 @@ Per-night self-report, opened from the report's questionnaire card.
    הפרעות בשעות חוסר הפעילות"). A wording set will be proposed and reviewed against the UX-wording rules.
 2. **"ערוך זמנים" = deferred to a later phase.** v1 timeline is **read-only**. The `MorningReport`
    `correctedQuiet*` fields are reserved for that later phase and are NOT built in v1.
-3. **Native actions home = permission contextual; export/clear stay debug-only.** Usage Access is
-   handled only in the no-permission state; "מידע נוסף" stays purely informational; Export backup /
-   Clear data remain debug/POC actions, out of the product UI for now.
+3. **Native actions home = permission contextual; no export/clear.** Usage Access is handled only in
+   the no-permission state; "מידע נוסף" stays purely informational. Export backup / Clear data were
+   debug-only and were removed with the legacy debug screen (2026-10-18).
 
 ## Data layer (status)
 

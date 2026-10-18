@@ -43,17 +43,11 @@ android {
     }
 
     buildTypes {
-        debug {
-            // The legacy View debug screen (MainActivity) is enabled only in debug builds.
-            manifestPlaceholders["debugScreenEnabled"] = "true"
-        }
         release {
             // Only sign when the keystore.properties exists; otherwise leave unsigned (no broken build).
             if (keystorePropsFile.exists()) {
                 signingConfig signingConfigs.release
             }
-            // The store build ships with the legacy debug screen disabled (see AndroidManifest.xml).
-            manifestPlaceholders["debugScreenEnabled"] = "false"
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
@@ -69,7 +63,6 @@ android {
     }
 
     buildFeatures {
-        viewBinding true
         buildConfig true
         compose true
     }
