@@ -19,7 +19,7 @@
 https://sharoniis.github.io/sleepguard/privacy-policy.html
 ```
 
-שם המפתחת ומייל ליצירת הקשר כבר מולאו בעמוד.
+השם (Sharoni) והמייל (documately@gmail.com) כבר מולאו בעמוד. צריך רק לוודא שהכתובת עולה לאוויר (GitHub Pages מתוך main, תיקייה /docs).
 
 ---
 
